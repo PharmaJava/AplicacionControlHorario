@@ -10,27 +10,20 @@ from cryptography.fernet import Fernet
 class TimeTrackerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Control Horario - España 2025")
+        self.root.title("Control Horario - España")
         self.root.geometry("800x600")
         self.root.configure(bg="#B3CDE0")
 
-        # Clave de administrador
         self.admin_password = "RepublicaArgentina"
-
-        # Generar clave de cifrado para datos sensibles (RGPD)
         self.key = Fernet.generate_key()
         self.cipher = Fernet(self.key)
 
-        # Directorio de datos del usuario (%APPDATA%)
         app_data_dir = os.path.join(os.getenv('APPDATA'), 'ControlHorario')
-        os.makedirs(app_data_dir, exist_ok=True)  # Crear directorio si no existe
+        os.makedirs(app_data_dir, exist_ok=True)
         db_path = os.path.join(app_data_dir, 'time_tracker.db')
-
-        # Conexión a la base de datos en %APPDATA%
         self.conn = sqlite3.connect(db_path)
         self.create_tables()
 
-        # Estilo personalizado
         self.style = ttk.Style()
         self.style.theme_use('clam')
         self.style.configure("TButton", padding=10, relief="flat", background="#6497B1", 
@@ -40,14 +33,10 @@ class TimeTrackerApp:
         self.style.configure("TEntry", fieldbackground="white", foreground="#03396C", font=("Arial", 10))
         self.style.configure("Custom.TFrame", background="#B3CDE0")
 
-        # Frame principal
         self.main_frame = ttk.Frame(root, padding="30", style="Custom.TFrame")
         self.main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Widgets
         self.create_widgets()
-
-        # Etiqueta PharmaJava copyright
         ttk.Label(self.root, text="PharmaJava © 2025", 
                  font=("Arial", 8, "italic"), foreground="#03396C").place(relx=0.90, rely=0.95)
 
@@ -76,6 +65,8 @@ class TimeTrackerApp:
         self.name_entry.grid(row=0, column=1, pady=15, padx=10)
         ttk.Button(self.main_frame, text="Crear Usuario", 
                   command=self.create_user).grid(row=0, column=2, padx=15, pady=15)
+        ttk.Button(self.main_frame, text="Modificar Usuario", 
+                  command=self.modify_user).grid(row=0, column=3, padx=15, pady=15)
 
         ttk.Label(self.main_frame, text="ID Usuario:").grid(row=1, column=0, pady=15, padx=10, sticky="e")
         self.id_entry = ttk.Entry(self.main_frame, width=35)
@@ -96,7 +87,7 @@ class TimeTrackerApp:
         self.records_text = tk.Text(self.main_frame, height=20, width=80, 
                                    bg="white", fg="#03396C", font=("Arial", 10), 
                                    borderwidth=2, relief="groove")
-        self.records_text.grid(row=4, column=0, columnspan=3, pady=20)
+        self.records_text.grid(row=4, column=0, columnspan=4, pady=20)
         self.update_records_display()
 
     def check_admin_password(self):
@@ -121,6 +112,40 @@ class TimeTrackerApp:
             self.update_records_display()
         else:
             messagebox.showerror("Error", "Por favor ingrese un nombre")
+
+    def modify_user(self):
+        if not self.check_admin_password():
+            messagebox.showerror("Error", "Clave de administrador incorrecta")
+            return
+        
+        user_id = self.id_entry.get()
+        if not user_id:
+            messagebox.showerror("Error", "Por favor ingrese un ID de usuario")
+            return
+        
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT name FROM users WHERE id = ?", (user_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            messagebox.showerror("Error", f"No se encontró un usuario con ID {user_id}")
+            return
+        
+        current_name = result[0]
+        new_name = simpledialog.askstring("Modificar Usuario", 
+                                         f"Nombre actual: {current_name}\nNuevo nombre:", 
+                                         initialvalue=current_name)
+        
+        if new_name:
+            encrypted_name = self.cipher.encrypt(new_name.encode())
+            cursor.execute("UPDATE users SET name = ?, encrypted_name = ? WHERE id = ?", 
+                          (new_name, encrypted_name, user_id))
+            self.conn.commit()
+            messagebox.showinfo("Éxito", f"Usuario ID {user_id} actualizado a: {new_name}")
+            self.id_entry.delete(0, tk.END)
+            self.update_records_display()
+        else:
+            messagebox.showinfo("Cancelado", "No se realizaron cambios")
 
     def register_entry(self):
         user_id = self.id_entry.get()
@@ -225,7 +250,8 @@ class TimeTrackerApp:
         df_incidents = pd.DataFrame(incidents, columns=['Nombre', 'Fecha Incidencia'])
         
         timestamp = datetime.datetime.now().strftime("%d%m%Y_%H%M%S")
-        filename = f"registros_{timestamp}.xlsx"
+        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")  # Ruta al escritorio
+        filename = os.path.join(desktop_dir, f"registros_{timestamp}.xlsx")
         
         with pd.ExcelWriter(filename) as writer:
             df_records.to_excel(writer, sheet_name='Registros', index=False)
@@ -256,6 +282,7 @@ class TimeTrackerApp:
                                    f"Nombre: {name}\nEntrada: {entry}\nSalida: {exit or 'Pendiente'}\n\n")
 
     def __del__(self):
+        self.backup_db()
         self.conn.close()
 
 if __name__ == "__main__":
