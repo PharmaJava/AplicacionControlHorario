@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 class TimeTrackerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Control Horario - España")
+        self.root.title("Control Horario - España 2025")
         self.root.geometry("800x600")
         self.root.configure(bg="#B3CDE0")
 
@@ -250,7 +250,7 @@ class TimeTrackerApp:
         df_incidents = pd.DataFrame(incidents, columns=['Nombre', 'Fecha Incidencia'])
         
         timestamp = datetime.datetime.now().strftime("%d%m%Y_%H%M%S")
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")  # Ruta al escritorio
+        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
         filename = os.path.join(desktop_dir, f"registros_{timestamp}.xlsx")
         
         with pd.ExcelWriter(filename) as writer:
@@ -274,12 +274,18 @@ class TimeTrackerApp:
             SELECT u.name, r.entry_time, r.exit_time 
             FROM records r 
             JOIN users u ON r.user_id = u.id 
-            ORDER BY r.entry_time DESC 
+            ORDER BY 
+                strftime('%Y-%m-%d %H:%M:%S', 
+                    substr(r.entry_time, 7, 4) || '-' || 
+                    substr(r.entry_time, 4, 2) || '-' || 
+                    substr(r.entry_time, 1, 2) || ' ' || 
+                    substr(r.entry_time, 12, 8)
+                ) DESC 
             LIMIT 10
         """)
         for name, entry, exit in cursor.fetchall():
             self.records_text.insert(tk.END, 
-                                   f"Nombre: {name}\nEntrada: {entry}\nSalida: {exit or 'Pendiente'}\n\n")
+                                    f"Nombre: {name}\nEntrada: {entry}\nSalida: {exit or 'Pendiente'}\n\n")
 
     def __del__(self):
         self.backup_db()
