@@ -157,6 +157,34 @@ equipo controla los datos—, pero sí hace que **cualquier manipulación deje
 rastro**, que es lo que se puede pedir a un programa que funciona en el
 ordenador de la propia empresa.
 
+### 3.1 Qué NO acredita la verificación
+
+Conviene tenerlo muy claro antes de enseñar un informe a un inspector:
+
+> La cadena de huellas acredita que un registro **no se ha modificado desde que
+> entró en esta aplicación**. Nada más.
+
+Para un fichaje hecho en el terminal, ese momento coincide con el de la jornada,
+así que la garantía cubre prácticamente toda la vida del dato.
+
+Para un fichaje **importado del programa anterior** es distinto: la jornada es de
+2024 pero el dato entró en el sistema el día de la importación. La verificación
+sólo cubre desde entonces; lo que pasara antes depende del programa viejo, que no
+tenía ni control de modificaciones ni identificación fiable de quién fichaba.
+
+Por eso los informes **no presentan ambos casos como equivalentes**:
+
+* la hoja *Jornadas* del Excel tiene una columna **Procedencia**;
+* la hoja *Integridad* explica el alcance y cuenta cuántos registros son de cada
+  clase, con la fecha de importación;
+* el informe imprimible avisa bajo el nombre de cada persona;
+* el expediente JSON incluye un bloque `procedencia` y el texto
+  `alcance_de_la_verificacion`.
+
+Presentar registros importados como si se hubieran fichado y verificado en su
+momento sería inducir a error a la Inspección. El programa no lo hace, y conviene
+que quien entregue el informe tampoco lo haga de palabra.
+
 ---
 
 ## 4. Lo que este programa no hace

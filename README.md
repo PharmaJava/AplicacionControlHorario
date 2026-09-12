@@ -135,12 +135,36 @@ cambiar.
 | **Panel** | Quién está trabajando ahora, horas del día y avisos de cumplimiento. |
 | **Equipo** | Altas, bajas, PIN, fichajes manuales y entrega del registro individual. |
 | **Registros** | Jornadas de cada persona y rectificación de fichajes. |
-| **Informes** | Excel para la empresa, CSV para la gestoría y expediente JSON para la Inspección. |
+| **Informes** | Informe imprimible para la Inspección, Excel para la empresa, CSV para la gestoría y expediente JSON. |
 | **Ajustes** | Datos de empresa, límites de jornada, arranque automático, importación del histórico, contraseña, copias e integridad. |
 
 Deja el programa abierto en **Fichar**: es la pantalla pensada para un puesto
 compartido, y vuelve sola a la pantalla de acceso unos segundos después de cada
 fichaje.
+
+### Si tienes una inspección de trabajo
+
+El camino corto, con el programa ya instalado:
+
+1. **Ajustes → Datos de la empresa**: rellena razón social, CIF y centro de
+   trabajo. Sin esto los informes no identifican a la empresa.
+2. **Ajustes → Histórico**: importa la base de datos del programa anterior si
+   aún no lo has hecho. Te dice cuántos registros quedan por traer.
+3. **Informes → Informe para entregar a la Inspección → Generar**: eliges el
+   periodo y se abre en el navegador. **Ctrl+P** para guardarlo en PDF o
+   imprimirlo.
+
+Ese documento lleva los datos de la empresa, las jornadas de cada persona con
+sus totales, la verificación de integridad y un espacio para firma y sello.
+
+Mira también el **Panel**: los avisos de cumplimiento señalan lo que la
+Inspección suele mirar (descansos, jornadas sin cerrar, trabajadores sin PIN).
+
+> **Importante y honesto**: los registros importados del programa anterior van
+> marcados como tales en todos los informes. La verificación de integridad
+> acredita que no se han modificado **desde que se importaron**, no desde 2024.
+> Presentarlos como equivalentes a los fichados aquí sería inducir a error.
+> Está explicado en [docs/NORMATIVA.md](docs/NORMATIVA.md#31-qué-no-acredita-la-verificación).
 
 ### Corregir un fichaje
 
@@ -238,7 +262,7 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt pytest
 python -m controlhorario          # arrancar
-python -m pytest tests/ -q        # 99 pruebas
+python -m pytest tests/ -q        # 108 pruebas
 ```
 
 Estructura:

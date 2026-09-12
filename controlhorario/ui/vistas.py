@@ -816,10 +816,19 @@ class VistaInformes(Vista):
 
         opciones = [
             (
+                "Informe para entregar a la Inspección",
+                "Documento listo para imprimir o guardar en PDF, con los datos "
+                "de la empresa, las jornadas de cada persona, los totales y la "
+                "verificación de integridad. Es el que se entrega en mano.",
+                "Primario.TButton",
+                self.inspeccion,
+            ),
+            (
                 "Informe de empresa (Excel)",
                 "Resumen por trabajador, jornadas, fichajes, avisos de "
-                "cumplimiento y verificación de integridad.",
-                "Primario.TButton",
+                "cumplimiento y verificación de integridad. Para trabajar con "
+                "los datos o pasárselos a la gestoría.",
+                "TButton",
                 self.excel,
             ),
             (
@@ -861,7 +870,10 @@ class VistaInformes(Vista):
                 "El registro debe estar a disposición de las personas "
                 "trabajadoras, de sus representantes legales y de la Inspección "
                 "de Trabajo, y conservarse cuatro años. Los informes se guardan "
-                "en el Escritorio."
+                "en el Escritorio.\n\n"
+                "Los informes distinguen las jornadas fichadas en este terminal "
+                "de las importadas del programa anterior, e indican desde cuándo "
+                "garantiza la aplicación que no se han modificado."
             ),
             style="Suave.TLabel",
             wraplength=int(700 * self.tema.escala), justify="left",
@@ -872,6 +884,23 @@ class VistaInformes(Vista):
         if not periodo:
             return None, None
         return periodo, self.app.trabajadores(incluir_bajas=True)
+
+    def inspeccion(self) -> None:
+        periodo, gente = self._periodo_y_gente()
+        if not periodo:
+            return
+        ruta = informes.informe_inspeccion(
+            self.app.conexion, self.app.ajustes, gente, *periodo
+        )
+        self.app.aviso("Informe generado. Se abre en el navegador.", "exito", 6000)
+        _abrir(ruta)
+        messagebox.showinfo(
+            "Informe para la Inspección",
+            f"Guardado en:\n{ruta}\n\n"
+            "Se ha abierto en el navegador. Para guardarlo en PDF, pulsa "
+            "Ctrl+P y elige «Guardar como PDF».",
+            parent=self,
+        )
 
     def excel(self) -> None:
         periodo, gente = self._periodo_y_gente()

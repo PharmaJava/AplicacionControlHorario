@@ -5,6 +5,22 @@
 Reescritura completa a partir de la versión de 2024. Los datos se conservan:
 al arrancar, el programa se ofrece a importar la base de datos anterior.
 
+### Informes ante una inspección
+
+- **Informe imprimible para la Inspección**: documento legible con los datos de
+  la empresa, las jornadas de cada persona, los totales, la verificación de
+  integridad y espacio para firma y sello. Se abre en el navegador y con Ctrl+P
+  se guarda en PDF, sin depender de más programas.
+- **Corregida una afirmación que se pasaba de frenada**: los informes decían
+  «ÍNTEGRO» para todos los registros, incluidos los importados del programa de
+  2024. La cadena de huellas sólo acredita que un dato no se ha modificado
+  desde que entró en la aplicación; para lo importado, eso es desde la fecha de
+  importación, no desde que ocurrió la jornada. Ahora los informes distinguen
+  ambos casos y explican el alcance real: la hoja *Jornadas* tiene columna
+  **Procedencia**, la hoja *Integridad* cuenta cuántos registros son de cada
+  clase, y el expediente JSON incluye `procedencia` y
+  `alcance_de_la_verificacion`.
+
 ### Autoría
 
 - Recuperada la firma del autor en la interfaz, que la versión de 2024 tenía en
@@ -129,7 +145,7 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
 
 - Un solo fichero de 298 líneas → paquete de nueve módulos con
   responsabilidades separadas.
-- **99 pruebas automáticas** (`pytest`).
+- **108 pruebas automáticas** (`pytest`).
 - **Eliminada la dependencia de pandas**: los informes usan `openpyxl`
   directamente, lo que ahorra unos 60 MB de descarga en la instalación y
   permite dar formato al Excel.

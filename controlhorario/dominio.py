@@ -62,6 +62,10 @@ class Evento:
     rectificado: bool = False
     momento_original: dt.datetime | None = None
     motivo: str = ""
+    # Cuándo entró el dato en el sistema. En un fichaje normal coincide casi
+    # con `momento`; en uno importado del sistema anterior son fechas muy
+    # distintas, y esa diferencia es justo lo que debe verse en un informe.
+    registrado: dt.datetime | None = None
 
 
 @dataclass
@@ -74,6 +78,13 @@ class Jornada:
     incidencia: bool = False
     rectificada: bool = False
     nota: str = ""
+    origen: str = "APP"
+    registrada: dt.datetime | None = None
+
+    @property
+    def importada(self) -> bool:
+        """¿Viene del programa anterior en vez de haberse fichado aquí?"""
+        return self.origen == "MIGRADO"
 
     @property
     def abierta(self) -> bool:
@@ -551,6 +562,7 @@ def _leer_evento(conexion: sqlite3.Connection, evento_id: int) -> Evento:
         nota=fila["nota"],
         autor=fila["autor"],
         motivo=fila["motivo"],
+        registrado=db.desde_iso(fila["creado_utc"]),
     )
 
 
@@ -624,6 +636,7 @@ def eventos_efectivos(
                     db.desde_iso(fila["ts_utc"]) if correccion else None
                 ),
                 motivo=correccion["motivo"] if correccion else "",
+                registrado=db.desde_iso(fila["creado_utc"]),
             )
         )
 
@@ -655,6 +668,8 @@ def construir_jornadas(eventos: Sequence[Evento]) -> list[Jornada]:
                 inicio=evento.momento,
                 modalidad=evento.modalidad,
                 rectificada=evento.rectificado,
+                origen=evento.origen,
+                registrada=evento.registrado,
             )
         elif actual is None:
             continue  # salida o pausa huérfana: sin jornada abierta
