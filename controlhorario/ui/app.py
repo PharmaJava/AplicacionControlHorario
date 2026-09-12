@@ -8,6 +8,7 @@ from tkinter import messagebox, ttk
 
 from .. import db, migracion, normativa
 from ..config import Ajustes, directorio_datos
+from ..empaquetado import ruta_recurso
 from ..dominio import Trabajador, listar_trabajadores
 from ..seguridad import Cifrador, hash_secreto, verificar_secreto
 from ..version import NOMBRE_LARGO, __version__
@@ -40,6 +41,7 @@ class Aplicacion(tk.Tk):
         self.vista_actual = "fichar"
 
         self._construir()
+        self._poner_icono()
         self.aviso_flotante = Aviso(self, self.tema)
 
         centrar(self, int(1120 * self.tema.escala), int(720 * self.tema.escala))
@@ -269,6 +271,28 @@ class Aplicacion(tk.Tk):
                 "error",
                 7000,
             )
+
+    def _poner_icono(self) -> None:
+        """Icono de la ventana y de la barra de tareas.
+
+        Se intenta primero el .ico (lo único que entiende Windows para la
+        ventana) y luego el .png. Que falle no debe impedir arrancar: sin
+        icono el programa funciona igual.
+        """
+        try:
+            ico = ruta_recurso("icono.ico")
+            if ico.exists():
+                self.iconbitmap(default=str(ico))
+                return
+        except tk.TclError:
+            pass
+        try:
+            png = ruta_recurso("icono_256.png")
+            if png.exists():
+                self._icono = tk.PhotoImage(file=str(png))
+                self.iconphoto(True, self._icono)
+        except tk.TclError:
+            pass
 
     def _maximizar(self) -> None:
         """Pantalla completa para el equipo que hace de terminal de fichaje.

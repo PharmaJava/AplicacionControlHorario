@@ -24,4 +24,6 @@ packages = ["controlhorario", "controlhorario.ui"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["error::DeprecationWarning"]
+# Sólo fallan los avisos de obsolescencia de nuestro propio código: que una
+# dependencia externa emita uno no debe tumbar la compilación del .exe.
+filterwarnings = ["error::DeprecationWarning:controlhorario.*"]

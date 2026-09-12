@@ -19,19 +19,35 @@ ningún servidor.
 
 ## Instalación
 
-### Windows
+### Windows (recomendado): un único .exe
 
-1. Descarga o clona este repositorio.
-2. Entra en la carpeta `instalar`.
-3. Doble clic en **`instalar.bat`**.
+Descarga el instalador de la [última
+versión](../../releases/latest) y haz doble clic:
 
-El instalador busca Python (y se ofrece a instalarlo si falta), prepara un
-entorno propio con las dependencias, y crea el acceso directo en el
-**Escritorio** y en el **menú Inicio**. No hace falta ser administrador.
+| Fichero | Para qué |
+|---|---|
+| **ControlHorario-Instalador-*.exe** | Lo normal. Instala el programa, crea el acceso directo y ofrece abrirlo al encender el equipo. |
+| ControlHorario-Portable-*.exe | Sin instalar nada. Para probarlo o llevarlo en un pendrive. |
 
-Para desinstalar: `instalar\desinstalar.bat`, o desde «Agregar o quitar
-programas». **Los registros de jornada no se borran**, porque la ley obliga a
-conservarlos cuatro años.
+**No hace falta tener Python**: va todo dentro. Es un solo archivo, así que se
+puede pasar por USB o por un enlace de descarga.
+
+> **Windows mostrará un aviso.** El ejecutable no está firmado digitalmente,
+> así que SmartScreen dirá *«Windows protegió su PC»*. Pulsa **Más información
+> → Ejecutar de todas formas**. Es lo habitual en programas sin certificado de
+> firma, que cuesta unos cientos de euros al año.
+>
+> Ten en cuenta también que **Gmail y Outlook bloquean los .exe adjuntos**:
+> para enviarlo, usa un enlace de descarga o un ZIP.
+
+Para desinstalar, desde «Agregar o quitar programas». **Los registros de
+jornada no se borran**, porque la ley obliga a conservarlos cuatro años.
+
+### Windows: desde el código fuente
+
+Si prefieres no usar el .exe, en la carpeta `instalar` hay un `instalar.bat`
+que monta el programa con el Python del equipo (y se ofrece a instalarlo si
+falta).
 
 ### Linux y macOS
 
@@ -183,6 +199,38 @@ En resumen, a septiembre de 2026:
 - La **jornada de 37,5 horas no está en vigor**: siguen siendo 40 h de promedio
   anual. Si tu convenio aplica menos, cámbialo en Ajustes.
 
+## Generar el .exe
+
+Normalmente no hace falta: cada etiqueta `v*` que se publica en el repositorio
+dispara la compilación en GitHub Actions, que pasa las pruebas, compila,
+comprueba que el ejecutable arranca y publica los dos .exe en una release. La
+compilación también se puede lanzar a mano desde la pestaña **Actions →
+Construir el .exe de Windows → Run workflow**.
+
+Para compilarlo en tu propio equipo Windows:
+
+```powershell
+.\construir\construir.ps1
+```
+
+Necesita Python 3.10+ y, para el instalador, Inno Setup 6
+(`winget install JRSoftware.InnoSetup`). Los .exe quedan en `dist\`.
+
+> Un .exe de Windows sólo se puede compilar **en** Windows: PyInstaller no hace
+> compilación cruzada. Por eso el workflow usa un runner de Windows.
+
+### Diagnóstico
+
+Si el programa no arranca en algún equipo, desde una ventana de comandos:
+
+```
+ControlHorario.exe --diagnostico
+```
+
+Imprime dónde está instalado, dónde guarda los datos y si le falta alguna
+dependencia. Si falla al arrancar, además deja el detalle en
+`%APPDATA%\ControlHorario\error_arranque.log`.
+
 ## Desarrollo
 
 ```bash
@@ -190,7 +238,7 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt pytest
 python -m controlhorario          # arrancar
-python -m pytest tests/ -q        # 92 pruebas
+python -m pytest tests/ -q        # 99 pruebas
 ```
 
 Estructura:
@@ -205,6 +253,7 @@ controlhorario/
     informes.py    Excel, CSV y expediente para la Inspección
     migracion.py   importación de la versión 2024
     arranque.py    arranque automático con el sistema
+    empaquetado.py rutas cuando corre como .exe
     ui/            interfaz (tema, componentes, diálogos, vistas)
 ```
 

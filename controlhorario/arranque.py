@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .empaquetado import directorio_ejecutable, ejecutable, esta_empaquetado, ruta_recurso
+
 ETIQUETA_MAC = "com.pharmajava.controlhorario"
 _NOMBRE_ENLACE = "Control Horario"
 
@@ -31,27 +33,26 @@ class ErrorArranque(Exception):
 # Cómo se lanza el programa
 # --------------------------------------------------------------------------- #
 
-def _directorio_app() -> Path:
-    """Carpeta desde la que se importa el paquete."""
-    return Path(__file__).resolve().parent.parent
-
-
-def _interprete() -> Path:
-    """Intérprete con el que relanzar el programa.
-
-    En Windows se prefiere ``pythonw.exe``: ``python.exe`` abriría además una
-    ventana negra de consola detrás del programa.
-    """
-    actual = Path(sys.executable)
-    if sys.platform.startswith("win"):
-        sin_consola = actual.with_name("pythonw.exe")
-        if sin_consola.exists():
-            return sin_consola
-    return actual
-
-
 def orden() -> list[str]:
-    return [str(_interprete()), "-m", "controlhorario"]
+    """Con qué se relanza el programa al iniciar sesión.
+
+    Empaquetado basta con el propio ``.exe``; desde el código fuente hay que
+    invocar el módulo con el intérprete.
+    """
+    if esta_empaquetado():
+        return [str(ejecutable())]
+    return [str(ejecutable()), "-m", "controlhorario"]
+
+
+def _icono() -> str:
+    """Icono del acceso directo.
+
+    Empaquetado, el propio ejecutable ya lleva el icono incrustado; sin
+    empaquetar hay que apuntar al fichero .ico.
+    """
+    if esta_empaquetado():
+        return f"{ejecutable()},0"
+    return f"{ruta_recurso('icono.ico')},0"
 
 
 # --------------------------------------------------------------------------- #
@@ -110,13 +111,15 @@ def _activar_windows(destino: Path) -> None:
 
     Es la forma de generar un .lnk de verdad sin depender de pywin32.
     """
+    partes = orden()
+    argumentos = " ".join(partes[1:])
     guion = (
         "$s = New-Object -ComObject WScript.Shell; "
         f"$a = $s.CreateShortcut('{destino}'); "
-        f"$a.TargetPath = '{_interprete()}'; "
-        "$a.Arguments = '-m controlhorario'; "
-        f"$a.WorkingDirectory = '{_directorio_app()}'; "
-        f"$a.IconLocation = '{_directorio_app() / 'recursos' / 'icono.ico'},0'; "
+        f"$a.TargetPath = '{partes[0]}'; "
+        f"$a.Arguments = '{argumentos}'; "
+        f"$a.WorkingDirectory = '{directorio_ejecutable()}'; "
+        f"$a.IconLocation = '{_icono()}'; "
         "$a.Description = 'Registro de jornada laboral'; "
         "$a.Save()"
     )
@@ -141,7 +144,7 @@ def _activar_linux(destino: Path) -> None:
         "Name=Control Horario\n"
         "Comment=Registro de jornada laboral\n"
         f"Exec={ejecutar}\n"
-        f"Path={_directorio_app()}\n"
+        f"Path={directorio_ejecutable()}\n"
         "Icon=controlhorario\n"
         "Terminal=false\n"
         "X-GNOME-Autostart-enabled=true\n"
@@ -166,7 +169,7 @@ def _activar_mac(destino: Path) -> None:
         f"{argumentos}"
         "    </array>\n"
         "    <key>WorkingDirectory</key>\n"
-        f"    <string>{_directorio_app()}</string>\n"
+        f"    <string>{directorio_ejecutable()}</string>\n"
         "    <key>RunAtLoad</key>\n"
         "    <true/>\n"
         "    <key>KeepAlive</key>\n"

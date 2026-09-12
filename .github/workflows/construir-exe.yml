@@ -1,0 +1,140 @@
+name: Construir el .exe de Windows
+
+# Se puede lanzar a mano desde la pestaña Actions, y se lanza solo al publicar
+# una etiqueta de versión (por ejemplo v2026.1.0), en cuyo caso además crea la
+# release con el .exe listo para descargar y enviar.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  construir:
+    runs-on: windows-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pytest
+
+      - name: Pasar las pruebas
+        # Un ejecutable que no pasa las pruebas no se publica.
+        run: python -m pytest -q
+
+      - name: Leer la versión
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path 'controlhorario\version.py' `
+                -Pattern '__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Versión: $v"
+
+      - name: Empaquetar el programa
+        shell: pwsh
+        env:
+          CH_RAIZ: ${{ github.workspace }}
+        run: |
+          $env:CH_MODO = 'carpeta'
+          python -m PyInstaller --noconfirm --clean construir\controlhorario.spec
+          $env:CH_MODO = 'portable'
+          python -m PyInstaller --noconfirm --clean construir\controlhorario.spec
+
+      - name: Comprobar que el ejecutable arranca
+        shell: pwsh
+        # Arrancar la interfaz en el runner verifica que no falta ninguna
+        # dependencia: si faltara, el proceso moriría en los primeros segundos.
+        run: |
+          $exe = 'dist\ControlHorario\ControlHorario.exe'
+          if (-not (Test-Path $exe)) { throw "No se ha generado $exe" }
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) {
+            $log = "$env:APPDATA\ControlHorario\error_arranque.log"
+            if (Test-Path $log) { Get-Content $log }
+            throw "El ejecutable se cerró solo (código $($p.ExitCode))."
+          }
+          Stop-Process -Id $p.Id -Force
+          Write-Host 'El ejecutable arranca correctamente.'
+
+      - name: Crear el instalador
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Host 'Instalando Inno Setup...'
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) {
+            $iscc = (Get-Command iscc -ErrorAction Stop).Source
+          }
+          & $iscc "/DMiVersion=${{ steps.version.outputs.version }}" `
+                  'construir\instalador.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup ha fallado.' }
+
+      - name: Renombrar la versión portátil
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          Move-Item dist\ControlHorarioPortable.exe `
+                    "dist\ControlHorario-Portable-$v.exe" -Force
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            "{0,-48} {1,7:N1} MB" -f $_.Name, ($_.Length / 1MB)
+          }
+
+      - name: Guardar los ejecutables
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControlHorario-Windows-${{ steps.version.outputs.version }}
+          path: dist/*.exe
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Publicar la release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $notas = @'
+          ## Control Horario __VERSION__
+
+          ### Descarga
+
+          | Fichero | Para qué |
+          |---|---|
+          | **ControlHorario-Instalador-__VERSION__.exe** | Lo normal: instala el programa, crea el acceso directo y permite abrirlo al encender el equipo. |
+          | ControlHorario-Portable-__VERSION__.exe | Sin instalar nada. Util para probarlo o llevarlo en un pendrive. |
+
+          No hace falta tener Python instalado: va todo dentro.
+
+          ### Al abrirlo, Windows avisara
+
+          El ejecutable no esta firmado digitalmente, asi que SmartScreen mostrara
+          *"Windows protegio su PC"*. Pulsa **Mas informacion -> Ejecutar de todas
+          formas**. Es lo normal en programas sin certificado de firma.
+
+          ### Tus datos
+
+          Los registros de jornada se guardan en `%APPDATA%\ControlHorario`, aparte
+          del programa. Instalar, actualizar o desinstalar no los toca: la ley
+          obliga a conservarlos cuatro anos.
+          '@
+          $notas = $notas.Replace('__VERSION__', $v)
+          $ficheros = (Get-ChildItem dist\*.exe).FullName
+          gh release create "v$v" @ficheros --title "Control Horario $v" --notes $notas
