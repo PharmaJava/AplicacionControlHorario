@@ -1,11 +1,20 @@
 name: Construir el .exe de Windows
 
-# Se puede lanzar a mano desde la pestaña Actions, y se lanza solo al publicar
-# una etiqueta de versión (por ejemplo v2026.1.0), en cuyo caso además crea la
-# release con el .exe listo para descargar y enviar.
+# Cuándo se construye el .exe:
+#
+#   · cada cambio en main  → actualiza la release «ultima», de modo que
+#                            siempre hay un .exe al día sin hacer nada;
+#   · una etiqueta v*      → publica una release numerada y estable;
+#   · a mano               → pestaña Actions → Run workflow.
+#
+# Para saltarse la compilación en un cambio que no toca el programa (por
+# ejemplo corregir el README), basta con poner [skip ci] en el mensaje del
+# commit: GitHub lo entiende por sí solo.
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
@@ -104,7 +113,7 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
-      - name: Publicar la release
+      - name: Publicar la versión estable
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
@@ -150,3 +159,52 @@ jobs:
               --title "Control Horario $v" --notes $notas
           }
           if ($LASTEXITCODE -ne 0) { throw 'No se han podido publicar los ejecutables.' }
+
+      - name: Actualizar la descarga «última versión»
+        # Cada cambio en main deja un .exe al día listo para descargar, sin
+        # tener que etiquetar una versión ni acordarse de nada. Va marcada como
+        # prelanzamiento para que no se confunda con una versión estable.
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $sha = '${{ github.sha }}'.Substring(0, 7)
+          $fecha = Get-Date -Format 'dd/MM/yyyy HH:mm'
+          $ficheros = (Get-ChildItem dist\*.exe).FullName
+
+          $notas = @'
+          Compilación automática del último cambio en main.
+
+          | | |
+          |---|---|
+          | Versión | __VERSION__ |
+          | Commit | __SHA__ |
+          | Compilado | __FECHA__ (UTC) |
+
+          Descarga **ControlHorario-Instalador-__VERSION__.exe** y haz doble clic.
+          No hace falta tener Python instalado.
+
+          Esta descarga se reemplaza sola con cada cambio, asi que siempre
+          apunta a lo ultimo. Para una version fija y estable, mira las releases
+          numeradas.
+
+          Windows mostrara *"Windows protegio su PC"* porque el ejecutable no
+          esta firmado: **Mas informacion -> Ejecutar de todas formas**.
+          '@
+          $notas = $notas.Replace('__VERSION__', $v).Replace('__SHA__', $sha)
+          $notas = $notas.Replace('__FECHA__', $fecha)
+
+          gh release view ultima *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit ultima --title "Última versión ($v)" --notes $notas `
+              --prerelease --target main
+            gh release upload ultima @ficheros --clobber
+          } else {
+            gh release create ultima @ficheros --title "Última versión ($v)" `
+              --notes $notas --prerelease --target main
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'No se ha podido actualizar la descarga.' }
+
+          Write-Host "Descargable en: ${{ github.server_url }}/${{ github.repository }}/releases/tag/ultima"

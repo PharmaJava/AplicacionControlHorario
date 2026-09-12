@@ -5,6 +5,20 @@
 Reescritura completa a partir de la versión de 2024. Los datos se conservan:
 al arrancar, el programa se ofrece a importar la base de datos anterior.
 
+### Publicación automática del .exe
+
+- **Cada cambio en `main` actualiza la descarga «Última versión»**, con las
+  pruebas pasadas y el arranque comprobado. Siempre hay un .exe al día sin
+  tener que acordarse de nada; las etiquetas `v*` siguen publicando versiones
+  numeradas y estables.
+
+### Claridad de la interfaz
+
+- El control de acceso decía «Sin sesión» y ofrecía «Cerrar sesión» aunque no
+  hubiera ninguna abierta, lo que no explicaba nada. Ahora es un solo botón que
+  dice lo que hace —**Acceder a la gestión** / **Salir de la gestión**— con una
+  línea debajo que aclara qué pantallas piden contraseña.
+
 ### Informes ante una inspección
 
 - **Informe imprimible para la Inspección**: documento legible con los datos de

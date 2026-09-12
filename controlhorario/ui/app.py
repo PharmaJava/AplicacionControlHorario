@@ -58,7 +58,7 @@ class Aplicacion(tk.Tk):
     def _construir(self) -> None:
         p = self.tema.paleta
 
-        self.lateral = tk.Frame(self, bg=p.superficie, width=int(210 * self.tema.escala))
+        self.lateral = tk.Frame(self, bg=p.superficie, width=int(236 * self.tema.escala))
         self.lateral.pack(side="left", fill="y")
         self.lateral.pack_propagate(False)
 
@@ -71,7 +71,7 @@ class Aplicacion(tk.Tk):
         self.etiqueta_empresa = tk.Label(
             marca, text=self.ajustes.empresa or "Registro de jornada",
             bg=p.superficie, fg=p.texto_suave, font=self.tema.f_micro,
-            anchor="w", wraplength=int(170 * self.tema.escala), justify="left",
+            anchor="w", wraplength=int(196 * self.tema.escala), justify="left",
         )
         self.etiqueta_empresa.pack(fill="x", pady=(2, 0))
 
@@ -87,17 +87,27 @@ class Aplicacion(tk.Tk):
 
         pie = tk.Frame(self.lateral, bg=p.superficie)
         pie.pack(side="bottom", fill="x", padx=10, pady=14)
-        self.pastilla_sesion = Pastilla(pie, self.tema, "Sin sesión", "neutro")
-        self.pastilla_sesion.pack(anchor="w", padx=8, pady=(0, 8))
+
+        # El estado de acceso se explica solo: nada de «Sin sesión», que no
+        # dice a nadie qué es ni qué hacer con ello. Va en su propio marco para
+        # que al repintarlo no se cuele por debajo de lo que hay más abajo.
+        self.marco_acceso = tk.Frame(pie, bg=p.superficie)
+        self.marco_acceso.pack(fill="x")
+        self.pastilla_sesion = Pastilla(self.marco_acceso, self.tema, "", "info")
+        self.boton_sesion = ttk.Button(
+            self.marco_acceso, text="", style="Nav.TButton",
+            command=self.alternar_sesion, takefocus=False,
+        )
+        self.aviso_acceso = tk.Label(
+            self.marco_acceso, bg=p.superficie, fg=p.texto_suave,
+            font=self.tema.f_micro, anchor="w", justify="left",
+            wraplength=int(196 * self.tema.escala),
+        )
         ttk.Button(
             pie, text="  Cambiar tema", style="Nav.TButton",
             command=self.alternar_tema, takefocus=False,
         ).pack(fill="x")
-        self.boton_sesion = ttk.Button(
-            pie, text="  Cerrar sesión", style="Nav.TButton",
-            command=self.cerrar_sesion, takefocus=False,
-        )
-        self.boton_sesion.pack(fill="x")
+        self._pintar_estado_sesion()
 
         tk.Label(
             pie, text=credito(), bg=p.superficie, fg=p.texto_suave,
@@ -176,26 +186,56 @@ class Aplicacion(tk.Tk):
 
     def _renovar_sesion(self) -> None:
         self._admin_hasta = dt.datetime.now() + dt.timedelta(minutes=MINUTOS_SESION)
-        self.pastilla_sesion.tono("info", "Sesión de administración")
+        self._pintar_estado_sesion()
+
+    def _pintar_estado_sesion(self) -> None:
+        """Deja claro si la administración está abierta y qué protege."""
+        for widget in (self.pastilla_sesion, self.boton_sesion, self.aviso_acceso):
+            widget.pack_forget()
+
+        if self.sesion_activa():
+            self.pastilla_sesion.tono("info", "Administración abierta")
+            self.pastilla_sesion.pack(anchor="w", padx=8, pady=(0, 6))
+            self.boton_sesion.configure(text="  Salir de la gestión")
+            self.aviso_acceso.configure(
+                text=f"Se cierra sola tras {MINUTOS_SESION} min sin usarla."
+            )
+        else:
+            self.boton_sesion.configure(text="  Acceder a la gestión")
+            self.aviso_acceso.configure(
+                text="Equipo, Registros, Informes y Ajustes piden contraseña."
+            )
+        self.boton_sesion.pack(fill="x")
+        self.aviso_acceso.pack(fill="x", padx=8, pady=(4, 8))
+
+    def alternar_sesion(self) -> None:
+        """Un único botón: abre la administración o la cierra."""
+        if self.sesion_activa():
+            self.cerrar_sesion()
+        elif self.exigir_admin("Para administrar el programa"):
+            self.aviso("Administración abierta.", "exito")
+            self.navegar("panel")
 
     def cerrar_sesion(self) -> None:
         if self._admin_hasta is None:
-            self.aviso("No hay ninguna sesión abierta.", "info")
             return
         self._admin_hasta = None
-        self.pastilla_sesion.tono("neutro", "Sin sesión")
+        self._pintar_estado_sesion()
         for clave, vista in list(self._vistas.items()):
             definicion = next((v for v in VISTAS if v[0] == clave), None)
             if definicion and definicion[2].requiere_admin:
                 vista.destroy()
                 del self._vistas[clave]
         self.navegar("fichar")
-        self.aviso("Sesión de administración cerrada.", "info")
+        self.aviso("Administración cerrada. El terminal sigue disponible.", "info")
 
     def _vigilar_sesion(self) -> None:
         if self._admin_hasta is not None and not self.sesion_activa():
             self.cerrar_sesion()
-            self.aviso("Sesión cerrada por inactividad.", "aviso")
+            self.aviso(
+                f"Administración cerrada tras {MINUTOS_SESION} minutos "
+                "sin usarla.", "aviso",
+            )
         self.after(30_000, self._vigilar_sesion)
 
     def actor(self) -> str:

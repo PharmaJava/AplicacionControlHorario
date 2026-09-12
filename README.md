@@ -21,8 +21,9 @@ ningún servidor.
 
 ### Windows (recomendado): un único .exe
 
-Descarga el instalador de la [última
-versión](../../releases/latest) y haz doble clic:
+Descarga el instalador desde [**Releases**](../../releases) y haz doble
+clic. Ahí hay siempre dos opciones: *Última versión*, que se actualiza sola con
+cada cambio, y las versiones numeradas, que no se mueven.
 
 | Fichero | Para qué |
 |---|---|
@@ -142,6 +143,17 @@ Deja el programa abierto en **Fichar**: es la pantalla pensada para un puesto
 compartido, y vuelve sola a la pantalla de acceso unos segundos después de cada
 fichaje.
 
+### Acceder a la gestión
+
+**Fichar** y **Panel** están siempre disponibles: cualquiera puede fichar sin
+contraseña, que para eso está el terminal.
+
+**Equipo, Registros, Informes y Ajustes** piden la contraseña de
+administración. Se entra con el botón **Acceder a la gestión** de la esquina
+inferior izquierda, y se sale con **Salir de la gestión**. Si te olvidas, se
+cierra sola a los 15 minutos sin usarla: el equipo suele estar en una zona
+común y no conviene dejar los datos del personal a la vista.
+
 ### Si tienes una inspección de trabajo
 
 El camino corto, con el programa ya instalado:
@@ -225,11 +237,32 @@ En resumen, a septiembre de 2026:
 
 ## Generar el .exe
 
-Normalmente no hace falta: cada etiqueta `v*` que se publica en el repositorio
-dispara la compilación en GitHub Actions, que pasa las pruebas, compila,
-comprueba que el ejecutable arranca y publica los dos .exe en una release. La
-compilación también se puede lanzar a mano desde la pestaña **Actions →
-Construir el .exe de Windows → Run workflow**.
+**No hay que hacer nada**: GitHub lo compila solo. Hay dos descargas:
+
+| Descarga | Cuándo se actualiza | Para qué |
+|---|---|---|
+| [**Última versión**](../../releases/tag/ultima) | Con cada cambio en `main` | Tener siempre lo más reciente |
+| [Versiones numeradas](../../releases/latest) | Al publicar una etiqueta `v*` | Una versión fija que no se mueve |
+
+Cada compilación pasa las pruebas, empaqueta, comprueba que el ejecutable
+arranca de verdad y sube los dos .exe. Si algo falla, no se publica nada.
+
+Para **publicar una versión numerada**: sube el número en
+`controlhorario/version.py`, y luego en la web del repositorio ve a
+**Releases → Draft a new release**, escribe la etiqueta (`v2026.2.0`), elige
+*Create new tag on publish* y pulsa **Publish release**. También vale desde la
+terminal:
+
+```bash
+git tag -a v2026.2.0 -m "Control Horario 2026.2.0"
+git push origin v2026.2.0
+```
+
+Si un cambio no toca el programa (corregir el README, por ejemplo), pon
+`[skip ci]` en el mensaje del commit y GitHub se saltará la compilación.
+
+También se puede lanzar a mano desde **Actions → Construir el .exe de Windows
+→ Run workflow**.
 
 Para compilarlo en tu propio equipo Windows:
 
