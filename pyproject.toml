@@ -1,0 +1,27 @@
+[project]
+name = "controlhorario"
+version = "2026.1.0"
+description = "Registro de jornada laboral conforme al art. 34.9 del Estatuto de los Trabajadores"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "cryptography>=42.0",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.gui-scripts]
+controlhorario = "controlhorario.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["controlhorario", "controlhorario.ui"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning"]
