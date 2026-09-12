@@ -1,0 +1,4 @@
+# Dependencias de Control Horario.
+# tkinter no se instala con pip: viene con Python (en Linux, python3-tk).
+cryptography>=42.0
+openpyxl>=3.1

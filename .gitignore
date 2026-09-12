@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+entorno/
+build/
+dist/
+
+# Datos locales: nunca deben acabar en el repositorio
+*.db
+*.db-wal
+*.db-shm
+clave.key
+ajustes.json
+copias/
