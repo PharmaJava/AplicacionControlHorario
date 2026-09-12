@@ -253,21 +253,17 @@ jobs:
               echo "La rama no aporta cambios sobre ${BASE}. Nada que fusionar."
               exit 0
             fi
-            echo "No hay ninguna PR abierta para $RAMA; se crea una."
-            gh pr create --repo "$GITHUB_REPOSITORY" \
-              --base "$BASE" --head "$RAMA" \
-              --title "$(git log -1 --pretty=%s)" \
-              --body "$(printf '%s\n\n%s\n\n%s' \
-                 'Creada automáticamente tras una compilación correcta en Windows.' \
-                 "$(git log -1 --pretty=%b)" \
-                 'Se fusiona sola: las pruebas y el arranque del ejecutable ya han pasado.')"
-            numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
-                       --state open --json number --jq '.[0].number // empty')
-          fi
-
-          if [ -z "$numero" ]; then
-            echo "No se ha podido determinar la PR de $RAMA." >&2
-            exit 1
+            # Crear una PR desde Actions requiere activar «Allow GitHub Actions
+            # to create and approve pull requests» en los ajustes del
+            # repositorio, y está desactivado por defecto. Fusionar una que ya
+            # existe sí está permitido, así que aquí sólo se avisa: quien
+            # empuja la rama es quien abre la PR.
+            echo "::warning title=Sin PR que fusionar::La rama $RAMA tiene" \
+                 "cambios sin fusionar y no hay ninguna PR abierta. El .exe se" \
+                 "ha publicado igualmente. Abre una PR y el siguiente cambio la" \
+                 "fusionará solo, o activa «Allow GitHub Actions to create and" \
+                 "approve pull requests» en Settings → Actions → General."
+            exit 0
           fi
 
           echo "Fusionando la PR #$numero ($RAMA)."
