@@ -137,4 +137,16 @@ jobs:
           '@
           $notas = $notas.Replace('__VERSION__', $v)
           $ficheros = (Get-ChildItem dist\*.exe).FullName
-          gh release create "v$v" @ficheros --title "Control Horario $v" --notes $notas
+
+          # La release puede existir ya, si la etiqueta se creó desde la web de
+          # GitHub en lugar de con 'git push'. En ese caso se le añaden los
+          # ejecutables en vez de fallar por intentar crearla dos veces.
+          gh release view "v$v" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "La release v$v ya existe: subiendo los ejecutables."
+            gh release upload "v$v" @ficheros --clobber
+          } else {
+            gh release create "v$v" @ficheros `
+              --title "Control Horario $v" --notes $notas
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'No se han podido publicar los ejecutables.' }
