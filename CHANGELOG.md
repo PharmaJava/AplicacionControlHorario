@@ -11,8 +11,9 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
   una esquina y que la reescritura había eliminado. Aparece como **PharmaJava**,
   sin razón social: es una persona, no una empresa. El año sale de la versión,
   así que no hay que acordarse de actualizarlo.
-- La autoría consta también en los informes y en el expediente para la
-  Inspección.
+- La firma aparece sólo en la interfaz. Los informes y el expediente para la
+  Inspección no llevan el nombre del autor: identifican a la empresa y al
+  programa, que es lo que la Inspección necesita.
 
 ### Instalador .exe
 

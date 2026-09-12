@@ -114,3 +114,37 @@ def test_las_alertas_viajan_en_el_expediente(
     datos = json.loads(ruta.read_text(encoding="utf-8"))
     codigos = {a["codigo"] for a in datos["alertas"]}
     assert "JORNADA_DIARIA" in codigos
+
+
+def test_los_informes_no_llevan_el_nombre_del_autor(
+    conexion, cifrador, ajustes, con_datos, periodo, tmp_path
+):
+    """Los informes identifican a la empresa y al programa, no a quien lo escribió.
+
+    Se mira dentro del .xlsx descomprimido, no sólo las celdas: el nombre podría
+    colarse en las propiedades del documento sin verse en ninguna hoja.
+    """
+    import zipfile
+
+    from controlhorario.version import AUTOR
+
+    xlsx = informes.exportar_excel(
+        conexion, cifrador, ajustes, [con_datos], *periodo, carpeta=tmp_path
+    )
+    with zipfile.ZipFile(xlsx) as comprimido:
+        crudo = b"".join(comprimido.read(n) for n in comprimido.namelist())
+    assert AUTOR.encode() not in crudo
+
+    for generar in (
+        lambda: informes.expediente_itss(
+            conexion, ajustes, [con_datos], *periodo, carpeta=tmp_path
+        ),
+        lambda: informes.exportar_csv(
+            conexion, ajustes, [con_datos], *periodo, carpeta=tmp_path
+        ),
+        lambda: informes.exportar_trabajador(
+            conexion, ajustes, con_datos, *periodo, carpeta=tmp_path
+        ),
+    ):
+        ruta = generar()
+        assert AUTOR not in ruta.read_text(encoding="utf-8-sig"), ruta.name
