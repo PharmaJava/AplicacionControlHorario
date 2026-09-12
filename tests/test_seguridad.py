@@ -87,16 +87,44 @@ def test_contrasena_incorrecta_rechazada():
 
 @pytest.mark.parametrize(
     "contrasena",
-    ["corta", "123456789012", "RepublicaArgentina", "todominusculas1"],
+    [
+        "corta",                 # demasiado corta
+        "123456789012",          # sólo números
+        "todominusculas1",       # corta y sin variedad suficiente
+        "contrasena123",         # de las habituales
+        "aaaaaaaaaaaaaaaaaa",    # larga pero repetitiva
+        "RepublicaArg",          # 12 caracteres con sólo dos familias
+    ],
 )
 def test_contrasenas_debiles_rechazadas(contrasena):
     valida, _ = fortaleza_contrasena(contrasena)
     assert not valida
 
 
-def test_contrasena_buena_aceptada():
-    valida, _ = fortaleza_contrasena("Farmacia2026!Segura")
-    assert valida
+@pytest.mark.parametrize(
+    "contrasena",
+    [
+        "Farmacia2026!Segura",   # corta pero con cuatro familias
+        "RepublicaArgentina",    # 18 caracteres: la longitud compensa
+        "el caballo blanco de santiago",
+    ],
+)
+def test_contrasenas_validas_aceptadas(contrasena):
+    valida, motivo = fortaleza_contrasena(contrasena)
+    assert valida, motivo
+
+
+def test_la_longitud_puede_sustituir_a_la_complejidad():
+    """Una frase larga vale, aunque no lleve números ni símbolos.
+
+    Es lo que recomienda el NIST (SP 800-63B): la longitud protege más que
+    obligar a meter un signo de puntuación que luego nadie recuerda.
+    """
+    corta = "RepublicaArg"           # 12 caracteres, dos familias
+    larga = "RepublicaArgentina"     # 18 caracteres, dos familias
+
+    assert not fortaleza_contrasena(corta)[0]
+    assert fortaleza_contrasena(larga)[0]
 
 
 @pytest.mark.parametrize("pin", ["0000", "1234", "abc1", "12", "999999999", "7777"])

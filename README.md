@@ -118,7 +118,14 @@ La primera vez el programa pide:
 1. **Datos de la empresa** — aparecen en los informes que se entregan a la
    Inspección.
 2. **Contraseña de administración** — protege todo lo que no sea fichar.
-   Apúntala en un gestor de contraseñas; sin ella no se puede administrar.
+   Mínimo 12 caracteres; a partir de 16 basta con mezclar mayúsculas y
+   minúsculas, porque una frase larga protege más que un símbolo que luego
+   nadie recuerda. Apúntala en un gestor de contraseñas: sin ella no se puede
+   administrar.
+
+   > No reutilices la contraseña de la versión de 2024: sigue siendo legible
+   > en el historial público de este repositorio, así que hay que darla por
+   > conocida.
 3. **Importar el histórico** — si encuentra la base de datos de la versión
    anterior, se ofrece a traerla. Conviene aceptar: esos registros hay que
    conservarlos cuatro años.
@@ -260,6 +267,27 @@ git push origin v2026.2.0
 
 Si un cambio no toca el programa (corregir el README, por ejemplo), pon
 `[skip ci]` en el mensaje del commit y GitHub se saltará la compilación.
+
+### Fusión automática
+
+Cuando la compilación de una rama `claude/*` termina en verde, su pull request
+se fusiona sola. Unas pruebas en rojo la frenan, así que nunca entra en `main`
+algo que no compile o que rompa las pruebas.
+
+El ciclo completo: empujar → compilar → probar → publicar el `.exe` → fusionar
+la PR.
+
+Si la rama tiene cambios y no hay ninguna PR abierta, la compilación avisa pero
+no falla: el `.exe` se publica igual. Crear la PR desde el propio workflow
+requiere activar **Settings → Actions → General → Allow GitHub Actions to
+create and approve pull requests**, que viene desactivado; fusionar una que ya
+existe no necesita nada.
+
+Sólo alcanza a ramas de este mismo repositorio: empujar a `claude/*` exige
+permiso de escritura, y las propuestas venidas de una bifurcación no disparan
+ese paso.
+
+Para desactivarlo, borra el trabajo `fusionar` del workflow.
 
 También se puede lanzar a mano desde **Actions → Construir el .exe de Windows
 → Run workflow**.

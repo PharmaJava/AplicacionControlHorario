@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   construir:
@@ -214,3 +215,59 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'No se ha podido actualizar la descarga.' }
 
           Write-Host "Descargable en: ${{ github.server_url }}/${{ github.repository }}/releases/tag/ultima"
+
+  # ------------------------------------------------------------------------- #
+  # Fusión automática
+  # ------------------------------------------------------------------------- #
+  fusionar:
+    # Sólo si la compilación ha ido bien: unas pruebas en rojo frenan el cambio.
+    needs: construir
+    if: startsWith(github.ref, 'refs/heads/claude/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fusionar la rama, creando la PR si hace falta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RAMA: ${{ github.ref_name }}
+          BASE: main
+        run: |
+          set -euo pipefail
+
+          # Sólo se tocan ramas de trabajo de este mismo repositorio: un push a
+          # 'claude/*' exige permiso de escritura, así que no puede venir de
+          # fuera. Las propuestas desde una bifurcación no disparan este trabajo.
+          numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
+                     --state open --json number --jq '.[0].number // empty')
+
+          if [ -z "$numero" ]; then
+            if git diff --quiet "origin/${BASE}...HEAD"; then
+              echo "La rama no aporta cambios sobre ${BASE}. Nada que fusionar."
+              exit 0
+            fi
+            # Crear una PR desde Actions requiere activar «Allow GitHub Actions
+            # to create and approve pull requests» en los ajustes del
+            # repositorio, y está desactivado por defecto. Fusionar una que ya
+            # existe sí está permitido, así que aquí sólo se avisa: quien
+            # empuja la rama es quien abre la PR.
+            echo "::warning title=Sin PR que fusionar::La rama $RAMA tiene" \
+                 "cambios sin fusionar y no hay ninguna PR abierta. El .exe se" \
+                 "ha publicado igualmente. Abre una PR y el siguiente cambio la" \
+                 "fusionará solo, o activa «Allow GitHub Actions to create and" \
+                 "approve pull requests» en Settings → Actions → General."
+            exit 0
+          fi
+
+          echo "Fusionando la PR #$numero ($RAMA)."
+          # Fusión con commit de mezcla, no aplastada: así la rama sigue siendo
+          # ancestro de main y las PR siguientes salen limpias en vez de
+          # arrastrar cambios que ya estaban aplicados.
+          gh pr merge "$numero" --repo "$GITHUB_REPOSITORY" --merge
