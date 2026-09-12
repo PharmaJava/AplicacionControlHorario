@@ -271,8 +271,12 @@ Si un cambio no toca el programa (corregir el README, por ejemplo), pon
 ### Fusión automática
 
 Cuando la compilación de una rama `claude/*` termina en verde, su pull request
-se fusiona sola. Unas pruebas en rojo la frenan, así que nunca entra en `main`
-algo que no compile o que rompa las pruebas.
+se fusiona sola; y si no existe ninguna, la crea. Unas pruebas en rojo la
+frenan, así que nunca entra en `main` algo que no compile o que rompa las
+pruebas.
+
+El ciclo completo, sin intervención: empujar → compilar → probar → crear la
+PR → fusionar → publicar el `.exe`.
 
 Sólo alcanza a ramas de este mismo repositorio: empujar a `claude/*` exige
 permiso de escritura, y las propuestas venidas de una bifurcación no disparan

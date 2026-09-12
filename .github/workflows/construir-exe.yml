@@ -229,24 +229,49 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Fusionar la PR de esta rama
+      - name: Descargar el código
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Fusionar la rama, creando la PR si hace falta
         env:
           GH_TOKEN: ${{ github.token }}
           RAMA: ${{ github.ref_name }}
+          BASE: main
         run: |
+          set -euo pipefail
+
           # Sólo se tocan ramas de trabajo de este mismo repositorio: un push a
           # 'claude/*' exige permiso de escritura, así que no puede venir de
-          # fuera. Las PR desde bifurcaciones no disparan este trabajo.
+          # fuera. Las propuestas desde una bifurcación no disparan este trabajo.
           numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
                      --state open --json number --jq '.[0].number // empty')
 
           if [ -z "$numero" ]; then
-            echo "No hay ninguna PR abierta para $RAMA; no hay nada que fusionar."
-            exit 0
+            if git diff --quiet "origin/${BASE}...HEAD"; then
+              echo "La rama no aporta cambios sobre ${BASE}. Nada que fusionar."
+              exit 0
+            fi
+            echo "No hay ninguna PR abierta para $RAMA; se crea una."
+            gh pr create --repo "$GITHUB_REPOSITORY" \
+              --base "$BASE" --head "$RAMA" \
+              --title "$(git log -1 --pretty=%s)" \
+              --body "$(printf '%s\n\n%s\n\n%s' \
+                 'Creada automáticamente tras una compilación correcta en Windows.' \
+                 "$(git log -1 --pretty=%b)" \
+                 'Se fusiona sola: las pruebas y el arranque del ejecutable ya han pasado.')"
+            numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
+                       --state open --json number --jq '.[0].number // empty')
           fi
 
-          echo "Fusionando la PR #$numero ($RAMA) tras una compilación correcta."
-          # Fusión con commit de mezcla, no aplastada: así la rama sigue
-          # siendo ancestro de main y las PR siguientes salen limpias en vez
-          # de arrastrar cambios que ya estaban aplicados.
+          if [ -z "$numero" ]; then
+            echo "No se ha podido determinar la PR de $RAMA." >&2
+            exit 1
+          fi
+
+          echo "Fusionando la PR #$numero ($RAMA)."
+          # Fusión con commit de mezcla, no aplastada: así la rama sigue siendo
+          # ancestro de main y las PR siguientes salen limpias en vez de
+          # arrastrar cambios que ya estaban aplicados.
           gh pr merge "$numero" --repo "$GITHUB_REPOSITORY" --merge
