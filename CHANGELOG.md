@@ -5,6 +5,68 @@
 Reescritura completa a partir de la versión de 2024. Los datos se conservan:
 al arrancar, el programa se ofrece a importar la base de datos anterior.
 
+### Publicación automática del .exe
+
+- **Cada cambio en `main` actualiza la descarga «Última versión»**, con las
+  pruebas pasadas y el arranque comprobado. Siempre hay un .exe al día sin
+  tener que acordarse de nada; las etiquetas `v*` siguen publicando versiones
+  numeradas y estables.
+
+### Claridad de la interfaz
+
+- El control de acceso decía «Sin sesión» y ofrecía «Cerrar sesión» aunque no
+  hubiera ninguna abierta, lo que no explicaba nada. Ahora es un solo botón que
+  dice lo que hace —**Acceder a la gestión** / **Salir de la gestión**— con una
+  línea debajo que aclara qué pantallas piden contraseña.
+
+### Informes ante una inspección
+
+- **Informe imprimible para la Inspección**: documento legible con los datos de
+  la empresa, las jornadas de cada persona, los totales, la verificación de
+  integridad y espacio para firma y sello. Se abre en el navegador y con Ctrl+P
+  se guarda en PDF, sin depender de más programas.
+- **Corregida una afirmación que se pasaba de frenada**: los informes decían
+  «ÍNTEGRO» para todos los registros, incluidos los importados del programa de
+  2024. La cadena de huellas sólo acredita que un dato no se ha modificado
+  desde que entró en la aplicación; para lo importado, eso es desde la fecha de
+  importación, no desde que ocurrió la jornada. Ahora los informes distinguen
+  ambos casos y explican el alcance real: la hoja *Jornadas* tiene columna
+  **Procedencia**, la hoja *Integridad* cuenta cuántos registros son de cada
+  clase, y el expediente JSON incluye `procedencia` y
+  `alcance_de_la_verificacion`.
+
+### Autoría
+
+- Recuperada la firma del autor en la interfaz, que la versión de 2024 tenía en
+  una esquina y que la reescritura había eliminado. Aparece como **PharmaJava**,
+  sin razón social: es una persona, no una empresa. El año sale de la versión,
+  así que no hay que acordarse de actualizarlo.
+- La firma aparece sólo en la interfaz. Los informes y el expediente para la
+  Inspección no llevan el nombre del autor: identifican a la empresa y al
+  programa, que es lo que la Inspección necesita.
+
+### Instalador .exe
+
+- **Instalador único para Windows** (`ControlHorario-Instalador-*.exe`), hecho
+  con PyInstaller e Inno Setup: instala el programa completo sin necesidad de
+  Python en el equipo de destino, crea los accesos directos, ofrece el arranque
+  automático y registra el desinstalador. Se instala en la carpeta del usuario,
+  sin pedir permisos de administrador.
+- **Versión portátil** (`ControlHorario-Portable-*.exe`), un único fichero que
+  se ejecuta sin instalar nada.
+- **Compilación automática en GitHub Actions**: cada etiqueta `v*` pasa las
+  pruebas, compila, comprueba que el ejecutable arranca y publica los .exe como
+  release descargable.
+- **Corregido antes de empaquetar**: `arranque.py` calculaba las rutas desde
+  `__file__`, que dentro de un .exe apunta a la carpeta temporal que PyInstaller
+  crea y borra en cada ejecución. El acceso directo de arranque automático
+  habría quedado apuntando a una carpeta inexistente. Ahora el nuevo módulo
+  `empaquetado.py` distingue entre la carpeta de recursos y la del ejecutable.
+- **Modo `--diagnostico`** en el ejecutable, que imprime rutas y dependencias
+  para resolver incidencias sin estar delante del equipo, y registro del fallo
+  en `error_arranque.log` si el programa no llega a abrir la ventana.
+- La ventana ya tiene **icono propio**.
+
 ### Arranque automático
 
 - Opción de **abrir el programa al encender el equipo**, pensada para el
@@ -97,7 +159,7 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
 
 - Un solo fichero de 298 líneas → paquete de nueve módulos con
   responsabilidades separadas.
-- **92 pruebas automáticas** (`pytest`).
+- **108 pruebas automáticas** (`pytest`).
 - **Eliminada la dependencia de pandas**: los informes usan `openpyxl`
   directamente, lo que ahorra unos 60 MB de descarga en la instalación y
   permite dar formato al Excel.

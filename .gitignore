@@ -4,9 +4,11 @@ __pycache__/
 .pytest_cache/
 venv/
 .venv/
+.venv-construir/
 entorno/
 build/
 dist/
+*.spec.bak
 
 # Datos locales: nunca deben acabar en el repositorio
 *.db

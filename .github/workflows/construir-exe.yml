@@ -1,0 +1,210 @@
+name: Construir el .exe de Windows
+
+# Cuándo se construye el .exe:
+#
+#   · cada cambio en main  → actualiza la release «ultima», de modo que
+#                            siempre hay un .exe al día sin hacer nada;
+#   · una etiqueta v*      → publica una release numerada y estable;
+#   · a mano               → pestaña Actions → Run workflow.
+#
+# Para saltarse la compilación en un cambio que no toca el programa (por
+# ejemplo corregir el README), basta con poner [skip ci] en el mensaje del
+# commit: GitHub lo entiende por sí solo.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  construir:
+    runs-on: windows-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pytest
+
+      - name: Pasar las pruebas
+        # Un ejecutable que no pasa las pruebas no se publica.
+        run: python -m pytest -q
+
+      - name: Leer la versión
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path 'controlhorario\version.py' `
+                -Pattern '__version__\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Versión: $v"
+
+      - name: Empaquetar el programa
+        shell: pwsh
+        env:
+          CH_RAIZ: ${{ github.workspace }}
+        run: |
+          $env:CH_MODO = 'carpeta'
+          python -m PyInstaller --noconfirm --clean construir\controlhorario.spec
+          $env:CH_MODO = 'portable'
+          python -m PyInstaller --noconfirm --clean construir\controlhorario.spec
+
+      - name: Comprobar que el ejecutable arranca
+        shell: pwsh
+        # Arrancar la interfaz en el runner verifica que no falta ninguna
+        # dependencia: si faltara, el proceso moriría en los primeros segundos.
+        run: |
+          $exe = 'dist\ControlHorario\ControlHorario.exe'
+          if (-not (Test-Path $exe)) { throw "No se ha generado $exe" }
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 15
+          if ($p.HasExited) {
+            $log = "$env:APPDATA\ControlHorario\error_arranque.log"
+            if (Test-Path $log) { Get-Content $log }
+            throw "El ejecutable se cerró solo (código $($p.ExitCode))."
+          }
+          Stop-Process -Id $p.Id -Force
+          Write-Host 'El ejecutable arranca correctamente.'
+
+      - name: Crear el instalador
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Host 'Instalando Inno Setup...'
+            choco install innosetup --no-progress -y
+          }
+          if (-not (Test-Path $iscc)) {
+            $iscc = (Get-Command iscc -ErrorAction Stop).Source
+          }
+          & $iscc "/DMiVersion=${{ steps.version.outputs.version }}" `
+                  'construir\instalador.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup ha fallado.' }
+
+      - name: Renombrar la versión portátil
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          Move-Item dist\ControlHorarioPortable.exe `
+                    "dist\ControlHorario-Portable-$v.exe" -Force
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            "{0,-48} {1,7:N1} MB" -f $_.Name, ($_.Length / 1MB)
+          }
+
+      - name: Guardar los ejecutables
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControlHorario-Windows-${{ steps.version.outputs.version }}
+          path: dist/*.exe
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Publicar la versión estable
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $notas = @'
+          ## Control Horario __VERSION__
+
+          ### Descarga
+
+          | Fichero | Para qué |
+          |---|---|
+          | **ControlHorario-Instalador-__VERSION__.exe** | Lo normal: instala el programa, crea el acceso directo y permite abrirlo al encender el equipo. |
+          | ControlHorario-Portable-__VERSION__.exe | Sin instalar nada. Util para probarlo o llevarlo en un pendrive. |
+
+          No hace falta tener Python instalado: va todo dentro.
+
+          ### Al abrirlo, Windows avisara
+
+          El ejecutable no esta firmado digitalmente, asi que SmartScreen mostrara
+          *"Windows protegio su PC"*. Pulsa **Mas informacion -> Ejecutar de todas
+          formas**. Es lo normal en programas sin certificado de firma.
+
+          ### Tus datos
+
+          Los registros de jornada se guardan en `%APPDATA%\ControlHorario`, aparte
+          del programa. Instalar, actualizar o desinstalar no los toca: la ley
+          obliga a conservarlos cuatro anos.
+          '@
+          $notas = $notas.Replace('__VERSION__', $v)
+          $ficheros = (Get-ChildItem dist\*.exe).FullName
+
+          # La release puede existir ya, si la etiqueta se creó desde la web de
+          # GitHub en lugar de con 'git push'. En ese caso se le añaden los
+          # ejecutables en vez de fallar por intentar crearla dos veces.
+          gh release view "v$v" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "La release v$v ya existe: subiendo los ejecutables."
+            gh release upload "v$v" @ficheros --clobber
+          } else {
+            gh release create "v$v" @ficheros `
+              --title "Control Horario $v" --notes $notas
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'No se han podido publicar los ejecutables.' }
+
+      - name: Actualizar la descarga «última versión»
+        # Cada cambio en main deja un .exe al día listo para descargar, sin
+        # tener que etiquetar una versión ni acordarse de nada. Va marcada como
+        # prelanzamiento para que no se confunda con una versión estable.
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $sha = '${{ github.sha }}'.Substring(0, 7)
+          $fecha = Get-Date -Format 'dd/MM/yyyy HH:mm'
+          $ficheros = (Get-ChildItem dist\*.exe).FullName
+
+          $notas = @'
+          Compilación automática del último cambio en main.
+
+          | | |
+          |---|---|
+          | Versión | __VERSION__ |
+          | Commit | __SHA__ |
+          | Compilado | __FECHA__ (UTC) |
+
+          Descarga **ControlHorario-Instalador-__VERSION__.exe** y haz doble clic.
+          No hace falta tener Python instalado.
+
+          Esta descarga se reemplaza sola con cada cambio, asi que siempre
+          apunta a lo ultimo. Para una version fija y estable, mira las releases
+          numeradas.
+
+          Windows mostrara *"Windows protegio su PC"* porque el ejecutable no
+          esta firmado: **Mas informacion -> Ejecutar de todas formas**.
+          '@
+          $notas = $notas.Replace('__VERSION__', $v).Replace('__SHA__', $sha)
+          $notas = $notas.Replace('__FECHA__', $fecha)
+
+          gh release view ultima *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit ultima --title "Última versión ($v)" --notes $notas `
+              --prerelease --target main
+            gh release upload ultima @ficheros --clobber
+          } else {
+            gh release create ultima @ficheros --title "Última versión ($v)" `
+              --notes $notas --prerelease --target main
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'No se ha podido actualizar la descarga.' }
+
+          Write-Host "Descargable en: ${{ github.server_url }}/${{ github.repository }}/releases/tag/ultima"

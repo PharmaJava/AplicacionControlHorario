@@ -19,19 +19,36 @@ ningún servidor.
 
 ## Instalación
 
-### Windows
+### Windows (recomendado): un único .exe
 
-1. Descarga o clona este repositorio.
-2. Entra en la carpeta `instalar`.
-3. Doble clic en **`instalar.bat`**.
+Descarga el instalador desde [**Releases**](../../releases) y haz doble
+clic. Ahí hay siempre dos opciones: *Última versión*, que se actualiza sola con
+cada cambio, y las versiones numeradas, que no se mueven.
 
-El instalador busca Python (y se ofrece a instalarlo si falta), prepara un
-entorno propio con las dependencias, y crea el acceso directo en el
-**Escritorio** y en el **menú Inicio**. No hace falta ser administrador.
+| Fichero | Para qué |
+|---|---|
+| **ControlHorario-Instalador-*.exe** | Lo normal. Instala el programa, crea el acceso directo y ofrece abrirlo al encender el equipo. |
+| ControlHorario-Portable-*.exe | Sin instalar nada. Para probarlo o llevarlo en un pendrive. |
 
-Para desinstalar: `instalar\desinstalar.bat`, o desde «Agregar o quitar
-programas». **Los registros de jornada no se borran**, porque la ley obliga a
-conservarlos cuatro años.
+**No hace falta tener Python**: va todo dentro. Es un solo archivo, así que se
+puede pasar por USB o por un enlace de descarga.
+
+> **Windows mostrará un aviso.** El ejecutable no está firmado digitalmente,
+> así que SmartScreen dirá *«Windows protegió su PC»*. Pulsa **Más información
+> → Ejecutar de todas formas**. Es lo habitual en programas sin certificado de
+> firma, que cuesta unos cientos de euros al año.
+>
+> Ten en cuenta también que **Gmail y Outlook bloquean los .exe adjuntos**:
+> para enviarlo, usa un enlace de descarga o un ZIP.
+
+Para desinstalar, desde «Agregar o quitar programas». **Los registros de
+jornada no se borran**, porque la ley obliga a conservarlos cuatro años.
+
+### Windows: desde el código fuente
+
+Si prefieres no usar el .exe, en la carpeta `instalar` hay un `instalar.bat`
+que monta el programa con el Python del equipo (y se ofrece a instalarlo si
+falta).
 
 ### Linux y macOS
 
@@ -119,12 +136,47 @@ cambiar.
 | **Panel** | Quién está trabajando ahora, horas del día y avisos de cumplimiento. |
 | **Equipo** | Altas, bajas, PIN, fichajes manuales y entrega del registro individual. |
 | **Registros** | Jornadas de cada persona y rectificación de fichajes. |
-| **Informes** | Excel para la empresa, CSV para la gestoría y expediente JSON para la Inspección. |
+| **Informes** | Informe imprimible para la Inspección, Excel para la empresa, CSV para la gestoría y expediente JSON. |
 | **Ajustes** | Datos de empresa, límites de jornada, arranque automático, importación del histórico, contraseña, copias e integridad. |
 
 Deja el programa abierto en **Fichar**: es la pantalla pensada para un puesto
 compartido, y vuelve sola a la pantalla de acceso unos segundos después de cada
 fichaje.
+
+### Acceder a la gestión
+
+**Fichar** y **Panel** están siempre disponibles: cualquiera puede fichar sin
+contraseña, que para eso está el terminal.
+
+**Equipo, Registros, Informes y Ajustes** piden la contraseña de
+administración. Se entra con el botón **Acceder a la gestión** de la esquina
+inferior izquierda, y se sale con **Salir de la gestión**. Si te olvidas, se
+cierra sola a los 15 minutos sin usarla: el equipo suele estar en una zona
+común y no conviene dejar los datos del personal a la vista.
+
+### Si tienes una inspección de trabajo
+
+El camino corto, con el programa ya instalado:
+
+1. **Ajustes → Datos de la empresa**: rellena razón social, CIF y centro de
+   trabajo. Sin esto los informes no identifican a la empresa.
+2. **Ajustes → Histórico**: importa la base de datos del programa anterior si
+   aún no lo has hecho. Te dice cuántos registros quedan por traer.
+3. **Informes → Informe para entregar a la Inspección → Generar**: eliges el
+   periodo y se abre en el navegador. **Ctrl+P** para guardarlo en PDF o
+   imprimirlo.
+
+Ese documento lleva los datos de la empresa, las jornadas de cada persona con
+sus totales, la verificación de integridad y un espacio para firma y sello.
+
+Mira también el **Panel**: los avisos de cumplimiento señalan lo que la
+Inspección suele mirar (descansos, jornadas sin cerrar, trabajadores sin PIN).
+
+> **Importante y honesto**: los registros importados del programa anterior van
+> marcados como tales en todos los informes. La verificación de integridad
+> acredita que no se han modificado **desde que se importaron**, no desde 2024.
+> Presentarlos como equivalentes a los fichados aquí sería inducir a error.
+> Está explicado en [docs/NORMATIVA.md](docs/NORMATIVA.md#31-qué-no-acredita-la-verificación).
 
 ### Corregir un fichaje
 
@@ -183,6 +235,59 @@ En resumen, a septiembre de 2026:
 - La **jornada de 37,5 horas no está en vigor**: siguen siendo 40 h de promedio
   anual. Si tu convenio aplica menos, cámbialo en Ajustes.
 
+## Generar el .exe
+
+**No hay que hacer nada**: GitHub lo compila solo. Hay dos descargas:
+
+| Descarga | Cuándo se actualiza | Para qué |
+|---|---|---|
+| [**Última versión**](../../releases/tag/ultima) | Con cada cambio en `main` | Tener siempre lo más reciente |
+| [Versiones numeradas](../../releases/latest) | Al publicar una etiqueta `v*` | Una versión fija que no se mueve |
+
+Cada compilación pasa las pruebas, empaqueta, comprueba que el ejecutable
+arranca de verdad y sube los dos .exe. Si algo falla, no se publica nada.
+
+Para **publicar una versión numerada**: sube el número en
+`controlhorario/version.py`, y luego en la web del repositorio ve a
+**Releases → Draft a new release**, escribe la etiqueta (`v2026.2.0`), elige
+*Create new tag on publish* y pulsa **Publish release**. También vale desde la
+terminal:
+
+```bash
+git tag -a v2026.2.0 -m "Control Horario 2026.2.0"
+git push origin v2026.2.0
+```
+
+Si un cambio no toca el programa (corregir el README, por ejemplo), pon
+`[skip ci]` en el mensaje del commit y GitHub se saltará la compilación.
+
+También se puede lanzar a mano desde **Actions → Construir el .exe de Windows
+→ Run workflow**.
+
+Para compilarlo en tu propio equipo Windows:
+
+```powershell
+.\construir\construir.ps1
+```
+
+Necesita Python 3.10+ y, para el instalador, Inno Setup 6
+(`winget install JRSoftware.InnoSetup`). Los .exe quedan en `dist\`.
+
+> Un .exe de Windows sólo se puede compilar **en** Windows: PyInstaller no hace
+> compilación cruzada. Por eso el workflow usa un runner de Windows.
+
+### Diagnóstico
+
+Si el programa no arranca en algún equipo, desde una ventana de comandos:
+
+```
+ControlHorario.exe --diagnostico
+```
+
+Imprime dónde está instalado, dónde guarda los datos y si le falta alguna
+dependencia. Si falla al arrancar, además deja el detalle en
+`%APPDATA%\ControlHorario\error_arranque.log`.
+
 ## Desarrollo
 
 ```bash
@@ -190,7 +295,7 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt pytest
 python -m controlhorario          # arrancar
-python -m pytest tests/ -q        # 92 pruebas
+python -m pytest tests/ -q        # 108 pruebas
 ```
 
 Estructura:
@@ -205,9 +310,13 @@ controlhorario/
     informes.py    Excel, CSV y expediente para la Inspección
     migracion.py   importación de la versión 2024
     arranque.py    arranque automático con el sistema
+    empaquetado.py rutas cuando corre como .exe
     ui/            interfaz (tema, componentes, diálogos, vistas)
 ```
 
-## Licencia
+## Autoría
 
-Uso interno de PharmaJava.
+Escrito y mantenido por **PharmaJava**.
+
+Programa de uso propio: no hay licencia pública ni se aceptan contribuciones
+externas.

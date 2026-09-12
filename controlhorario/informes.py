@@ -66,14 +66,80 @@ def _fila_jornada(jornada: Jornada, trabajador: Trabajador, ajustes: Ajustes) ->
         jornada.modalidad.capitalize(),
         "Sí" if jornada.incidencia else "",
         "Sí" if jornada.rectificada else "",
+        _procedencia(jornada),
         jornada.nota,
     ]
 
 
 _CABECERA_JORNADAS = [
     "Código", "Trabajador", "Fecha", "Entrada", "Salida", "Pausa (min)",
-    "Horas trabajadas", "Modalidad", "Incidencia", "Rectificada", "Observaciones",
+    "Horas trabajadas", "Modalidad", "Incidencia", "Rectificada", "Procedencia",
+    "Observaciones",
 ]
+
+
+def _procedencia(jornada: Jornada) -> str:
+    """De dónde sale el registro. Ante una inspección esto no es un detalle.
+
+    Un fichaje hecho en el terminal se registró cuando ocurrió; uno importado
+    del programa anterior entró en el sistema mucho después, y el informe debe
+    decirlo en vez de presentarlos como equivalentes.
+    """
+    if not jornada.importada:
+        return "Fichado en el terminal"
+    if jornada.registrada is None:
+        return "Importado del sistema anterior"
+    return (
+        "Importado del sistema anterior el "
+        f"{db.a_local(jornada.registrada):%d/%m/%Y}"
+    )
+
+
+def _resumen_procedencia(conexion: sqlite3.Connection) -> dict[str, Any]:
+    """Cuántos fichajes se registraron aquí y cuántos vienen del sistema viejo."""
+    filas = {
+        f["origen"]: (f["n"], f["creado"])
+        for f in conexion.execute(
+            "SELECT origen, COUNT(*) AS n, MIN(creado_utc) AS creado "
+            "FROM eventos GROUP BY origen"
+        )
+    }
+    importados = filas.get("MIGRADO", (0, None))
+    nativos = sum(n for origen, (n, _) in filas.items() if origen != "MIGRADO")
+    fecha = None
+    if importados[1]:
+        fecha = db.a_local(db.desde_iso(importados[1])).strftime("%d/%m/%Y")
+    return {
+        "nativos": nativos,
+        "importados": importados[0],
+        "fecha_importacion": fecha,
+    }
+
+
+def _texto_alcance(procedencia: dict[str, Any]) -> list[str]:
+    """Explicación honesta de hasta dónde llega la garantía de integridad."""
+    lineas = [
+        "La cadena de huellas SHA-256 acredita que los registros no se han",
+        "modificado desde que entraron en esta aplicación.",
+    ]
+    if procedencia["importados"]:
+        fecha = procedencia["fecha_importacion"] or "la fecha de importación"
+        lineas += [
+            "",
+            f"{procedencia['importados']} de estos fichajes proceden del programa",
+            f"anterior y se incorporaron el {fecha}. Para ellos la verificación",
+            "acredita únicamente que no se han alterado desde esa fecha: lo",
+            "ocurrido antes depende del sistema anterior, no de este.",
+            "La columna «Procedencia» de la hoja Jornadas indica el origen de",
+            "cada registro.",
+        ]
+    else:
+        lineas += [
+            "",
+            "Todos los fichajes se registraron directamente en el terminal, en el",
+            "momento en que se produjeron.",
+        ]
+    return lineas
 
 
 # --------------------------------------------------------------------------- #
@@ -259,6 +325,39 @@ def exportar_excel(
         hoja_integridad.cell(row=indice, column=1, value=etiqueta).font = Font(bold=True)
         hoja_integridad.cell(row=indice, column=2, value=str(valor))
     fila = len(filas) + 4
+
+    # Alcance real de la verificación. Presentar como equivalentes un fichaje
+    # hecho en el terminal y uno importado sería inducir a error.
+    procedencia = _resumen_procedencia(conexion)
+    hoja_integridad.cell(
+        row=fila, column=1, value="Qué acredita esta verificación"
+    ).font = Font(bold=True, size=11)
+    fila += 1
+    for linea in _texto_alcance(procedencia):
+        hoja_integridad.cell(row=fila, column=1, value=linea)
+        fila += 1
+
+    if procedencia["importados"]:
+        fila += 1
+        hoja_integridad.cell(
+            row=fila, column=1, value="Procedencia de los fichajes"
+        ).font = Font(bold=True, size=11)
+        fila += 1
+        for etiqueta, cuantos in (
+            ("Fichados en el terminal", procedencia["nativos"]),
+            ("Importados del sistema anterior", procedencia["importados"]),
+        ):
+            hoja_integridad.cell(row=fila, column=1, value=etiqueta)
+            hoja_integridad.cell(row=fila, column=2, value=cuantos)
+            fila += 1
+        if procedencia["fecha_importacion"]:
+            hoja_integridad.cell(row=fila, column=1, value="Fecha de la importación")
+            hoja_integridad.cell(
+                row=fila, column=2, value=procedencia["fecha_importacion"]
+            )
+            fila += 1
+
+    fila += 1
     for incidencia in informe["eventos"]["incidencias"] + informe["auditoria"]["incidencias"]:
         hoja_integridad.cell(
             row=fila, column=1,
@@ -429,6 +528,10 @@ def expediente_itss(
                         ),
                         "incidencia": j.incidencia,
                         "rectificada": j.rectificada,
+                        "origen": j.origen,
+                        "registrada_utc": db.a_iso(j.registrada)
+                        if j.registrada
+                        else None,
                     }
                     for j in jornadas
                 ],
@@ -479,6 +582,10 @@ def expediente_itss(
         },
         "periodo": {"desde_utc": db.a_iso(desde), "hasta_utc": db.a_iso(hasta)},
         "integridad": integridad,
+        "procedencia": _resumen_procedencia(conexion),
+        "alcance_de_la_verificacion": " ".join(
+            _texto_alcance(_resumen_procedencia(conexion))
+        ).replace("  ", " ").strip(),
         "trabajadores": personas,
         "auditoria": auditoria,
         "alertas": [
@@ -510,3 +617,211 @@ __all__ = [
     "exportar_excel",
     "exportar_trabajador",
 ]
+
+
+# --------------------------------------------------------------------------- #
+# Informe imprimible para la Inspección
+# --------------------------------------------------------------------------- #
+
+_ESTILO_IMPRESION = """
+:root { --tinta:#111827; --suave:#6B7280; --linea:#D1D5DB; --marca:#1F3A5F; }
+* { box-sizing:border-box; }
+body { font-family:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+       color:var(--tinta); margin:0; padding:24px; font-size:12px; line-height:1.45; }
+.aviso { background:#FEF3C7; border:1px solid #F59E0B; border-radius:6px;
+         padding:12px 16px; margin-bottom:20px; font-size:12px; }
+h1 { font-size:20px; margin:0 0 4px; color:var(--marca); }
+h2 { font-size:14px; margin:26px 0 8px; color:var(--marca);
+     border-bottom:2px solid var(--marca); padding-bottom:4px; }
+.sub { color:var(--suave); margin:0 0 18px; }
+table { width:100%; border-collapse:collapse; margin-bottom:6px; }
+th { background:var(--marca); color:#fff; text-align:left; padding:6px 8px;
+     font-size:11px; font-weight:600; }
+td { padding:5px 8px; border-bottom:1px solid var(--linea); }
+tr:nth-child(even) td { background:#F9FAFB; }
+td.n, th.n { text-align:right; }
+.ficha { border:1px solid var(--linea); border-radius:6px; padding:12px 16px;
+         margin-bottom:16px; }
+.ficha dl { display:grid; grid-template-columns:auto 1fr auto 1fr; gap:4px 14px;
+            margin:0; }
+.ficha dt { color:var(--suave); }
+.ficha dd { margin:0; font-weight:600; }
+.total { font-weight:700; background:#EFF6FF !important; }
+.marca { color:#92400E; font-size:10px; }
+.pie { margin-top:26px; padding-top:12px; border-top:1px solid var(--linea);
+       color:var(--suave); font-size:11px; }
+.firma { margin-top:34px; display:flex; gap:60px; }
+.firma div { flex:1; border-top:1px solid var(--tinta); padding-top:6px;
+             color:var(--suave); }
+@media print {
+  body { padding:0; font-size:10.5px; }
+  .aviso { display:none; }
+  h2 { page-break-after:avoid; }
+  table { page-break-inside:auto; }
+  tr { page-break-inside:avoid; }
+  .persona { page-break-before:always; }
+  .persona:first-of-type { page-break-before:auto; }
+  @page { size:A4; margin:14mm 12mm; }
+}
+"""
+
+
+def _escapar(texto: object) -> str:
+    from html import escape
+
+    return escape(str(texto if texto is not None else ""))
+
+
+def informe_inspeccion(
+    conexion: sqlite3.Connection,
+    ajustes: Ajustes,
+    trabajadores: Sequence[Trabajador],
+    desde: dt.datetime,
+    hasta: dt.datetime,
+    *,
+    carpeta: Path | None = None,
+) -> Path:
+    """Documento legible y listo para imprimir o guardar en PDF.
+
+    El Excel sirve para trabajar con los datos y el JSON para volcarlos, pero
+    lo que se entrega en mano tiene que poder leerse sin abrir un programa de
+    hojas de cálculo.  Se genera como página web autocontenida: se abre en
+    cualquier navegador y con Ctrl+P se guarda en PDF, sin depender de más
+    programas instalados.
+    """
+    procedencia = _resumen_procedencia(conexion)
+    partes: list[str] = []
+
+    partes.append(
+        '<div class="aviso"><b>Para guardarlo en PDF:</b> pulsa '
+        "<b>Ctrl+P</b> y elige «Guardar como PDF» o «Microsoft Print to PDF». "
+        "Este aviso no sale impreso.</div>"
+    )
+    partes.append("<h1>Registro de jornada</h1>")
+    partes.append(
+        '<p class="sub">Artículo 34.9 del Estatuto de los Trabajadores</p>'
+    )
+
+    partes.append('<div class="ficha"><dl>')
+    for etiqueta, valor in (
+        ("Empresa", ajustes.empresa or "—"),
+        ("CIF / NIF", ajustes.cif or "—"),
+        ("Centro de trabajo", ajustes.centro_trabajo or "—"),
+        ("Periodo", f"{db.a_local(desde):%d/%m/%Y} a {db.a_local(hasta):%d/%m/%Y}"),
+        ("Expedido", dt.datetime.now().strftime("%d/%m/%Y %H:%M")),
+        ("Personas incluidas", str(len(trabajadores))),
+    ):
+        partes.append(f"<dt>{_escapar(etiqueta)}</dt><dd>{_escapar(valor)}</dd>")
+    partes.append("</dl></div>")
+
+    total_general = 0
+    for trabajador in trabajadores:
+        jornadas = jornadas_de(conexion, trabajador.id, desde=desde, hasta=hasta)
+        if not jornadas:
+            continue
+        partes.append('<div class="persona">')
+        partes.append(
+            f"<h2>{_escapar(trabajador.nombre)} · {_escapar(trabajador.codigo)}"
+            + (f" · DNI {_escapar(trabajador.dni)}" if trabajador.dni else "")
+            + "</h2>"
+        )
+        # Si toda la serie viene del programa anterior, se dice una vez bajo el
+        # nombre en lugar de repetirlo en cada fila: se lee mucho mejor y el
+        # dato queda igual de claro.
+        importadas = sum(1 for j in jornadas if j.importada)
+        todas_importadas = importadas == len(jornadas)
+        if todas_importadas:
+            fecha = next(
+                (db.a_local(j.registrada).strftime("%d/%m/%Y")
+                 for j in jornadas if j.registrada),
+                None,
+            )
+            partes.append(
+                '<p class="marca">Todas las jornadas de este periodo proceden '
+                "del programa anterior"
+                + (f", incorporadas el {fecha}" if fecha else "")
+                + ".</p>"
+            )
+        partes.append(
+            "<table><thead><tr>"
+            "<th>Fecha</th><th>Entrada</th><th>Salida</th>"
+            '<th class="n">Pausa</th><th class="n">Trabajado</th>'
+            "<th>Modalidad</th><th>Observaciones</th>"
+            "</tr></thead><tbody>"
+        )
+        total = 0
+        for jornada in jornadas:
+            inicio = db.a_local(jornada.inicio)
+            fin = db.a_local(jornada.fin) if jornada.fin else None
+            minutos = jornada.minutos_trabajados(
+                ajustes.pausas_computan_como_trabajo
+            )
+            total += minutos
+            observaciones = []
+            if jornada.incidencia:
+                observaciones.append("incidencia")
+            if jornada.rectificada:
+                observaciones.append("rectificada")
+            if jornada.abierta:
+                observaciones.append("sin fichaje de salida")
+            if jornada.importada and not todas_importadas:
+                observaciones.append(
+                    '<span class="marca">importado del sistema anterior</span>'
+                )
+            salida = f"{fin:%H:%M}" if fin else "—"
+            partes.append(
+                "<tr>"
+                f"<td>{inicio:%d/%m/%Y}</td>"
+                f"<td>{inicio:%H:%M}</td>"
+                f"<td>{salida}</td>"
+                f'<td class="n">{jornada.minutos_pausa} min</td>'
+                f'<td class="n">{formatear_horas(minutos)}</td>'
+                f"<td>{_escapar(jornada.modalidad.capitalize())}</td>"
+                f"<td>{' · '.join(observaciones)}</td>"
+                "</tr>"
+            )
+        total_general += total
+        partes.append(
+            f'<tr class="total"><td colspan="4">TOTAL · {len(jornadas)} jornada(s)'
+            f'</td><td class="n">{formatear_horas(total)}</td><td colspan="2"></td>'
+            "</tr>"
+        )
+        partes.append("</tbody></table></div>")
+
+    partes.append("<h2>Verificación de integridad</h2>")
+    integridad = db.verificar_integridad(conexion)
+    partes.append(
+        "<p><b>Resultado: "
+        + ("ÍNTEGRO" if integridad["integro"] else "ALTERADO")
+        + f"</b> · {integridad['eventos']['filas']} fichajes encadenados · "
+        f"huella final <code>{integridad['eventos']['hash_final'][:24]}…</code></p>"
+    )
+    partes.append("<p>" + " ".join(_texto_alcance(procedencia)) + "</p>")
+
+    partes.append(
+        '<div class="pie">'
+        f"Total del periodo: <b>{formatear_horas(total_general)}</b>. "
+        "El registro se conserva cuatro años y está a disposición de las "
+        "personas trabajadoras, de sus representantes legales y de la "
+        "Inspección de Trabajo y Seguridad Social."
+        "</div>"
+    )
+    partes.append(
+        '<div class="firma"><div>Firma y sello de la empresa</div>'
+        "<div>Fecha</div></div>"
+    )
+
+    documento = (
+        "<!doctype html><html lang='es'><head><meta charset='utf-8'>"
+        f"<title>Registro de jornada · {_escapar(ajustes.empresa or 'empresa')}</title>"
+        f"<style>{_ESTILO_IMPRESION}</style></head><body>"
+        + "".join(partes)
+        + "</body></html>"
+    )
+
+    ruta = _destino(f"informe_inspeccion_{_marca_tiempo()}.html", carpeta)
+    ruta.write_text(documento, encoding="utf-8")
+    return ruta
+
+
+__all__ += ["informe_inspeccion"]
