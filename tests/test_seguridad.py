@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from controlhorario.config import ruta_clave
@@ -34,10 +36,32 @@ def test_el_texto_cifrado_no_contiene_el_original():
     assert b"12345678Z" not in cifrado
 
 
-def test_la_clave_no_es_legible_por_otros_usuarios():
+@pytest.mark.skipif(
+    sys.platform.startswith("win"),
+    reason="Windows no implementa los bits de permiso de POSIX",
+)
+def test_en_posix_la_clave_no_es_legible_por_otros_usuarios():
     obtener_clave()
     modo = ruta_clave().stat().st_mode
     assert modo & 0o077 == 0, "la clave no debe tener permisos de grupo ni otros"
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("win"), reason="específico de Windows"
+)
+def test_en_windows_la_clave_vive_dentro_del_perfil_del_usuario(monkeypatch, tmp_path):
+    """En Windows la protección no son los bits POSIX, sino dónde está el fichero.
+
+    `os.chmod` en Windows sólo conmuta el atributo de sólo lectura, así que la
+    comprobación equivalente es que la clave quede dentro de %APPDATA%, cuyas
+    ACL impiden por defecto que la lean otras cuentas del equipo.
+    """
+    from controlhorario.config import ruta_clave as ruta
+
+    monkeypatch.delenv("CONTROLHORARIO_DATOS", raising=False)
+    perfil = tmp_path / "Roaming"
+    monkeypatch.setenv("APPDATA", str(perfil))
+    assert str(ruta()).startswith(str(perfil))
 
 
 def test_indice_ciego_estable_y_no_reversible(cifrador):
