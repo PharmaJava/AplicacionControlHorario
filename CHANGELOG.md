@@ -5,6 +5,14 @@
 Reescritura completa a partir de la versión de 2024. Los datos se conservan:
 al arrancar, el programa se ofrece a importar la base de datos anterior.
 
+### Contraseñas
+
+- La validación pasa a **priorizar la longitud sobre la composición**, como
+  recomiendan el NIST (SP 800-63B) y el INCIBE: a partir de 16 caracteres basta
+  con dos tipos de carácter, y sólo se exigen tres en las más cortas. Obligar a
+  meter un símbolo produce contraseñas cortas y difíciles de recordar.
+- Se añade el rechazo de contraseñas muy repetitivas.
+
 ### Publicación automática del .exe
 
 - **Cada cambio en `main` actualiza la descarga «Última versión»**, con las

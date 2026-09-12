@@ -158,10 +158,14 @@ def verificar_secreto(secreto: str, almacenado: str | None) -> bool:
 
 
 def fortaleza_contrasena(contrasena: str) -> tuple[bool, str]:
-    """Valida una contraseña de administrador.
+    """Valida una contraseña de administración.
 
-    Criterio alineado con la guía del INCIBE y con el principio de seguridad
-    del art. 32 del RGPD: longitud por encima de complejidad artificial.
+    Criterio de longitud antes que de composición, que es lo que recomiendan
+    hoy el NIST (SP 800-63B) y el INCIBE: obligar a meter un símbolo y un
+    número produce contraseñas cortas y difíciles de recordar, mientras que una
+    frase larga resiste mucho mejor.  Por eso una contraseña de 16 caracteres o
+    más se acepta con dos tipos de carácter, y sólo se exige mezclar tres tipos
+    en las más cortas.
     """
     if len(contrasena) < 12:
         return False, "Debe tener al menos 12 caracteres."
@@ -169,14 +173,25 @@ def fortaleza_contrasena(contrasena: str) -> tuple[bool, str]:
         return False, "No puede ser sólo números."
     if contrasena.lower() in _CONTRASENAS_HABITUALES:
         return False, "Es una contraseña demasiado común."
-    familias = (
-        any(c.islower() for c in contrasena),
-        any(c.isupper() for c in contrasena),
-        any(c.isdigit() for c in contrasena),
-        any(not c.isalnum() for c in contrasena),
+    if len(set(contrasena)) < 5:
+        return False, "Repite demasiado los mismos caracteres."
+
+    familias = sum(
+        (
+            any(c.islower() for c in contrasena),
+            any(c.isupper() for c in contrasena),
+            any(c.isdigit() for c in contrasena),
+            any(not c.isalnum() for c in contrasena),
+        )
     )
-    if sum(familias) < 3:
-        return False, "Combina mayúsculas, minúsculas, números y símbolos."
+    minimo = 2 if len(contrasena) >= 16 else 3
+    if familias < minimo:
+        if minimo == 3:
+            return False, (
+                "Combina mayúsculas, minúsculas, números y símbolos, "
+                "o alárgala a 16 caracteres."
+            )
+        return False, "Mezcla al menos mayúsculas y minúsculas."
     return True, "Contraseña válida."
 
 
@@ -209,7 +224,6 @@ _CONTRASENAS_HABITUALES = frozenset(
         "qwertyuiop12",
         "123456789012",
         "controlhorario",
-        "republicaargentina",
     }
 )
 

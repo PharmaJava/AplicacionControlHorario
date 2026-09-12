@@ -118,7 +118,14 @@ La primera vez el programa pide:
 1. **Datos de la empresa** — aparecen en los informes que se entregan a la
    Inspección.
 2. **Contraseña de administración** — protege todo lo que no sea fichar.
-   Apúntala en un gestor de contraseñas; sin ella no se puede administrar.
+   Mínimo 12 caracteres; a partir de 16 basta con mezclar mayúsculas y
+   minúsculas, porque una frase larga protege más que un símbolo que luego
+   nadie recuerda. Apúntala en un gestor de contraseñas: sin ella no se puede
+   administrar.
+
+   > No reutilices la contraseña de la versión de 2024: sigue siendo legible
+   > en el historial público de este repositorio, así que hay que darla por
+   > conocida.
 3. **Importar el histórico** — si encuentra la base de datos de la versión
    anterior, se ofrece a traerla. Conviene aceptar: esos registros hay que
    conservarlos cuatro años.
