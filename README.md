@@ -268,6 +268,18 @@ git push origin v2026.2.0
 Si un cambio no toca el programa (corregir el README, por ejemplo), pon
 `[skip ci]` en el mensaje del commit y GitHub se saltará la compilación.
 
+### Fusión automática
+
+Cuando la compilación de una rama `claude/*` termina en verde, su pull request
+se fusiona sola. Unas pruebas en rojo la frenan, así que nunca entra en `main`
+algo que no compile o que rompa las pruebas.
+
+Sólo alcanza a ramas de este mismo repositorio: empujar a `claude/*` exige
+permiso de escritura, y las propuestas venidas de una bifurcación no disparan
+ese paso.
+
+Para desactivarlo, borra el trabajo `fusionar` del workflow.
+
 También se puede lanzar a mano desde **Actions → Construir el .exe de Windows
 → Run workflow**.
 

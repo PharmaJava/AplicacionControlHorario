@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   construir:
@@ -214,3 +215,38 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'No se ha podido actualizar la descarga.' }
 
           Write-Host "Descargable en: ${{ github.server_url }}/${{ github.repository }}/releases/tag/ultima"
+
+  # ------------------------------------------------------------------------- #
+  # Fusión automática
+  # ------------------------------------------------------------------------- #
+  fusionar:
+    # Sólo si la compilación ha ido bien: unas pruebas en rojo frenan el cambio.
+    needs: construir
+    if: startsWith(github.ref, 'refs/heads/claude/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Fusionar la PR de esta rama
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RAMA: ${{ github.ref_name }}
+        run: |
+          # Sólo se tocan ramas de trabajo de este mismo repositorio: un push a
+          # 'claude/*' exige permiso de escritura, así que no puede venir de
+          # fuera. Las PR desde bifurcaciones no disparan este trabajo.
+          numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
+                     --state open --json number --jq '.[0].number // empty')
+
+          if [ -z "$numero" ]; then
+            echo "No hay ninguna PR abierta para $RAMA; no hay nada que fusionar."
+            exit 0
+          fi
+
+          echo "Fusionando la PR #$numero ($RAMA) tras una compilación correcta."
+          # Fusión con commit de mezcla, no aplastada: así la rama sigue
+          # siendo ancestro de main y las PR siguientes salen limpias en vez
+          # de arrastrar cambios que ya estaban aplicados.
+          gh pr merge "$numero" --repo "$GITHUB_REPOSITORY" --merge

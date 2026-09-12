@@ -15,6 +15,9 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
 
 ### Publicación automática del .exe
 
+- **Fusión automática**: cuando la compilación de una rama de trabajo termina
+  en verde, su pull request se fusiona sola. Las pruebas siguen actuando de
+  freno, y sólo alcanza a ramas de este repositorio.
 - **Cada cambio en `main` actualiza la descarga «Última versión»**, con las
   pruebas pasadas y el arranque comprobado. Siempre hay un .exe al día sin
   tener que acordarse de nada; las etiquetas `v*` siguen publicando versiones
