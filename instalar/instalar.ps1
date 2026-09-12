@@ -20,6 +20,8 @@
 [CmdletBinding()]
 param(
     [switch]$SinAccesoDirecto,
+    [switch]$ArranqueAutomatico,
+    [switch]$SinArranqueAutomatico,
     [switch]$Silencioso
 )
 
@@ -220,6 +222,30 @@ if (-not $SinAccesoDirecto) {
     Escribir "    Acceso directo en el menú Inicio." 'Green'
 }
 
+# Arranque automático al iniciar sesión. Se usa la carpeta Inicio del usuario:
+# no requiere administrador y se quita con sólo borrar el acceso directo.
+$CarpetaInicio = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+$EnlaceInicio  = Join-Path $CarpetaInicio "$NombreApp.lnk"
+
+$quiereArranque = $false
+if ($ArranqueAutomatico) {
+    $quiereArranque = $true
+} elseif (-not $SinArranqueAutomatico -and -not $Silencioso) {
+    Write-Host ""
+    Escribir '    Si este equipo es el terminal donde ficha la plantilla,' 'Gray'
+    Escribir '    conviene que el programa se abra solo al encender.' 'Gray'
+    $r = Read-Host '    ¿Abrir Control Horario al iniciar Windows? (S/N)'
+    $quiereArranque = $r -match '^[SsYy]'
+}
+
+if ($quiereArranque) {
+    Nuevo-AccesoDirecto $EnlaceInicio 'Registro de jornada laboral (inicio automático)'
+    Escribir '    Se abrirá automáticamente al iniciar sesión.' 'Green'
+} elseif (Test-Path $EnlaceInicio) {
+    Remove-Item $EnlaceInicio -Force
+    Escribir '    Arranque automático desactivado.' 'Gray'
+}
+
 # --------------------------------------------------------------------------- #
 # 6. Registro de desinstalación
 # --------------------------------------------------------------------------- #
@@ -253,6 +279,9 @@ Escribir "    Datos    : $CarpetaDatos"
 Escribir "    Versión  : $version"
 Write-Host ""
 Escribir '    Abre «Control Horario» desde el Escritorio.' 'White'
+if ($quiereArranque) {
+    Escribir '    A partir del próximo encendido se abrirá solo.' 'Gray'
+}
 Escribir '    La primera vez te pedirá los datos de la empresa y una' 'Gray'
 Escribir '    contraseña de administración, y te ofrecerá importar el' 'Gray'
 Escribir '    histórico de la versión anterior si lo encuentra.' 'Gray'

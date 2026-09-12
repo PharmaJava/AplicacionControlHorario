@@ -5,6 +5,28 @@
 Reescritura completa a partir de la versión de 2024. Los datos se conservan:
 al arrancar, el programa se ofrece a importar la base de datos anterior.
 
+### Arranque automático
+
+- Opción de **abrir el programa al encender el equipo**, pensada para el
+  ordenador que hace de terminal de fichaje. Se activa desde el instalador o
+  desde **Ajustes → Arranque**, y usa el mecanismo de usuario de cada sistema
+  (carpeta Inicio en Windows, `~/.config/autostart` en Linux, agente de sesión
+  en macOS): no requiere administrador y se quita desde la misma casilla.
+- Opción de **abrir maximizado en la pantalla de Fichar**.
+
+### Conservación de los datos ya existentes
+
+- La base de datos de 2024 se abre **en modo sólo lectura** y no se modifica;
+  además se guarda una copia intacta antes de importar.
+- **La importación es idempotente**: se puede repetir sin duplicar fichajes, lo
+  que importa ahora que se puede lanzar a mano y que el programa puede
+  arrancar solo.
+- **No mezcla personas**: la correspondencia entre el trabajador antiguo y el
+  nuevo se guarda de forma explícita en lugar de deducirla del código, así que
+  un `E001` dado de alta previamente no absorbe el histórico de otra persona.
+- **Importación manual** desde Ajustes, indicando cuántos registros quedan por
+  traer, con selector para bases de datos guardadas en otra carpeta.
+
 ### Cumplimiento normativo
 
 - **Pausas y descansos** se registran como fichajes propios (`PAUSA_INICIO` /
@@ -75,7 +97,7 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
 
 - Un solo fichero de 298 líneas → paquete de nueve módulos con
   responsabilidades separadas.
-- **80 pruebas automáticas** (`pytest`).
+- **92 pruebas automáticas** (`pytest`).
 - **Eliminada la dependencia de pandas**: los informes usan `openpyxl`
   directamente, lo que ahorra unos 60 MB de descarga en la instalación y
   permite dar formato al Excel.

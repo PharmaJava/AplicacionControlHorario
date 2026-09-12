@@ -155,6 +155,18 @@ CREATE TABLE IF NOT EXISTS eventos (
 CREATE INDEX IF NOT EXISTS idx_eventos_trabajador ON eventos(trabajador_id, ts_utc);
 CREATE INDEX IF NOT EXISTS idx_eventos_ts         ON eventos(ts_utc);
 
+-- Qué se ha traído ya de la base de datos antigua. Sin esto, importar dos
+-- veces duplicaría todos los fichajes.
+CREATE TABLE IF NOT EXISTS importaciones (
+    origen        TEXT    NOT NULL,   -- 'users', 'records' o 'incidents'
+    origen_id     INTEGER NOT NULL,   -- id de la fila en la base antigua
+    fuente        TEXT    NOT NULL DEFAULT '',
+    trabajador_id INTEGER,
+    evento_id     INTEGER,
+    importado_utc TEXT    NOT NULL,
+    PRIMARY KEY (origen, origen_id, fuente)
+);
+
 CREATE TABLE IF NOT EXISTS auditoria (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     ts_utc      TEXT NOT NULL,

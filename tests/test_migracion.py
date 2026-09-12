@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 
 import pytest
@@ -115,8 +116,82 @@ def test_la_importacion_queda_auditada(conexion, cifrador, base_antigua):
     assert "IMPORTACION_HISTORICO" in acciones
 
 
-def test_importar_dos_veces_no_duplica_trabajadores(conexion, cifrador, base_antigua):
-    migracion.importar(conexion, cifrador)
+def test_importar_dos_veces_no_duplica_nada(conexion, cifrador, base_antigua):
+    """La importación se puede lanzar a mano, así que debe ser idempotente."""
+    primera = migracion.importar(conexion, cifrador)
+    eventos_tras_la_primera = conexion.execute(
+        "SELECT COUNT(*) AS n FROM eventos"
+    ).fetchone()["n"]
+
     segunda = migracion.importar(conexion, cifrador)
+    tercera = migracion.importar(conexion, cifrador)
+
+    assert primera.fichajes > 0
+    assert segunda.fichajes == 0
     assert segunda.trabajadores == 0
+    assert tercera.fichajes == 0
     assert len(dom.listar_trabajadores(conexion, cifrador)) == 2
+    assert conexion.execute(
+        "SELECT COUNT(*) AS n FROM eventos"
+    ).fetchone()["n"] == eventos_tras_la_primera
+
+
+def test_no_mezcla_con_trabajadores_dados_de_alta_antes(
+    conexion, cifrador, base_antigua
+):
+    """Si ya existe un E001 de otra persona, el importado va aparte."""
+    previo = dom.alta_trabajador(
+        conexion, cifrador, nombre="Pedro Sánchez Gil", pin="4791"
+    )
+    dom.fichar(conexion, previo.id, "ENTRADA", momento=db.ahora_utc())
+
+    migracion.importar(conexion, cifrador)
+
+    gente = {t.nombre: t for t in dom.listar_trabajadores(conexion, cifrador)}
+    assert set(gente) == {"Pedro Sánchez Gil", "María López", "Javier Ortiz"}
+    assert len(dom.jornadas_de(conexion, gente["Pedro Sánchez Gil"].id)) == 1
+    assert len(dom.jornadas_de(conexion, gente["María López"].id)) == 2
+
+
+def test_no_modifica_la_base_antigua(conexion, cifrador, base_antigua):
+    """El fichero de 2024 queda intacto como respaldo."""
+    antes = hashlib.sha256(base_antigua.read_bytes()).hexdigest()
+    migracion.importar(conexion, cifrador)
+    assert hashlib.sha256(base_antigua.read_bytes()).hexdigest() == antes
+
+
+def test_guarda_una_copia_del_fichero_original(conexion, cifrador, base_antigua):
+    resultado = migracion.importar(conexion, cifrador)
+    assert resultado.respaldo is not None
+    assert resultado.respaldo.exists()
+    assert resultado.respaldo.read_bytes() == base_antigua.read_bytes()
+
+
+def test_cuenta_lo_que_queda_por_importar(conexion, cifrador, base_antigua):
+    # 3 records legibles + 1 incidencia; la fila con la fecha corrupta no cuenta
+    assert migracion.pendiente_de_importar(conexion) == 4
+    migracion.importar(conexion, cifrador)
+    assert migracion.pendiente_de_importar(conexion) == 0
+
+
+def test_importa_lo_nuevo_que_aparezca_despues(conexion, cifrador, base_antigua):
+    """Si el programa antiguo siguió usándose, lo nuevo se trae luego."""
+    migracion.importar(conexion, cifrador)
+
+    antigua = sqlite3.connect(base_antigua)
+    antigua.execute(
+        "INSERT INTO records (user_id, entry_time, exit_time) "
+        "VALUES (1, '10/06/2024 08:00:00', '10/06/2024 16:00:00')"
+    )
+    antigua.commit()
+    antigua.close()
+
+    assert migracion.pendiente_de_importar(conexion) == 1
+    segunda = migracion.importar(conexion, cifrador)
+    assert segunda.fichajes == 2      # entrada y salida de la jornada nueva
+
+    maria = next(
+        t for t in dom.listar_trabajadores(conexion, cifrador)
+        if t.nombre == "María López"
+    )
+    assert len(dom.jornadas_de(conexion, maria.id)) == 3

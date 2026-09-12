@@ -43,6 +43,8 @@ class Aplicacion(tk.Tk):
         self.aviso_flotante = Aviso(self, self.tema)
 
         centrar(self, int(1120 * self.tema.escala), int(720 * self.tema.escala))
+        if self.ajustes.modo_terminal:
+            self._maximizar()
         self.protocol("WM_DELETE_WINDOW", self.cerrar)
         self.bind("<Control-q>", lambda _e: self.cerrar())
         self.bind("<F5>", lambda _e: self.refrescar_todo())
@@ -267,6 +269,23 @@ class Aplicacion(tk.Tk):
                 "error",
                 7000,
             )
+
+    def _maximizar(self) -> None:
+        """Pantalla completa para el equipo que hace de terminal de fichaje.
+
+        La forma de maximizar cambia según el gestor de ventanas, así que se
+        prueban las dos y se deja pasar el fallo: no arrancar por no poder
+        maximizar sería peor.
+        """
+        for intento in (
+            lambda: self.state("zoomed"),
+            lambda: self.attributes("-zoomed", True),
+        ):
+            try:
+                intento()
+                return
+            except tk.TclError:
+                continue
 
     def cerrar(self) -> None:
         try:

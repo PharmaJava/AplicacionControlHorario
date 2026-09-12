@@ -21,11 +21,17 @@ echo
 rm -f "$BIN" && echo "    Lanzador eliminado."
 rm -rf "${HOME}/Applications/Control Horario.app"
 rm -f "${HOME}/.local/share/applications/controlhorario.desktop"
+rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/controlhorario.desktop"
+AGENTE_MAC="${HOME}/Library/LaunchAgents/com.pharmajava.controlhorario.plist"
+if [ -f "$AGENTE_MAC" ]; then
+    launchctl unload "$AGENTE_MAC" 2>/dev/null || true
+    rm -f "$AGENTE_MAC"
+fi
 rm -f "${HOME}/.local/share/icons/hicolor/256x256/apps/controlhorario.png"
 for escritorio in "${HOME}/Escritorio" "${HOME}/Desktop"; do
     rm -f "${escritorio}/controlhorario.desktop"
 done
-echo "    Accesos directos eliminados."
+echo "    Accesos directos y arranque automático eliminados."
 
 rm -rf "$DESTINO" && echo "    Programa eliminado."
 

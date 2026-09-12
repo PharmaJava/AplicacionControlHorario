@@ -50,6 +50,50 @@ Desinstalar: `./instalar/desinstalar.sh`
   (en Windows y macOS viene incluido; en Debian/Ubuntu: `sudo apt install python3-tk`)
 - Dependencias, que instala el propio instalador: `cryptography` y `openpyxl`
 
+### Actualizar desde la versión de 2024
+
+La actualización **respeta la base de datos que ya estás usando**:
+
+- La base antigua (`time_tracker.db`) se abre **en modo sólo lectura** y no se
+  modifica nunca. Además se guarda una copia intacta en `copias/`.
+- Los datos se importan a un fichero nuevo (`controlhorario.db`), así que el
+  original sigue ahí por si hiciera falta volver atrás.
+- La importación **se puede repetir sin duplicar nada**. Si el programa antiguo
+  se sigue usando unos días en paralelo, vuelve a importar y sólo traerá lo
+  nuevo.
+- Si ya habías dado de alta gente a mano, los importados **no se mezclan** con
+  ellos: se crean aparte aunque coincida el código.
+
+Puedes lanzarla cuando quieras desde **Ajustes → Histórico de la versión
+anterior**, que además indica cuántos registros quedan por traer. Si la base
+antigua está en otro equipo o en una carpeta distinta, usa **Buscar otra base
+de datos**.
+
+> Los trabajadores importados **quedan sin PIN** y no pueden fichar hasta que
+> se les asigne uno en **Equipo**. El Panel avisa de ello.
+
+## Que se abra solo al encender el equipo
+
+Si el ordenador es el terminal donde ficha la plantilla, conviene que el
+programa esté abierto siempre. Hay dos formas:
+
+- **Durante la instalación**: el instalador lo pregunta.
+- **Después**: en **Ajustes → Arranque**, marca *«Iniciar Control Horario al
+  encender el equipo»*.
+
+Junto a esa opción está *«Abrir maximizado en la pantalla de Fichar»*, que deja
+el equipo listo para fichar nada más arrancar.
+
+Se configura sólo para el usuario actual, sin permisos de administrador:
+
+| Sistema | Dónde queda |
+|---|---|
+| Windows | Carpeta Inicio (`shell:startup`) |
+| Linux | `~/.config/autostart/controlhorario.desktop` |
+| macOS | `~/Library/LaunchAgents/com.pharmajava.controlhorario.plist` |
+
+Se quita desde la misma casilla, o borrando ese archivo.
+
 ## Primeros pasos
 
 La primera vez el programa pide:
@@ -76,7 +120,7 @@ cambiar.
 | **Equipo** | Altas, bajas, PIN, fichajes manuales y entrega del registro individual. |
 | **Registros** | Jornadas de cada persona y rectificación de fichajes. |
 | **Informes** | Excel para la empresa, CSV para la gestoría y expediente JSON para la Inspección. |
-| **Ajustes** | Datos de empresa, límites de jornada, contraseña, copias e integridad. |
+| **Ajustes** | Datos de empresa, límites de jornada, arranque automático, importación del histórico, contraseña, copias e integridad. |
 
 Deja el programa abierto en **Fichar**: es la pantalla pensada para un puesto
 compartido, y vuelve sola a la pantalla de acceso unos segundos después de cada
@@ -146,7 +190,7 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt pytest
 python -m controlhorario          # arrancar
-python -m pytest tests/ -q        # 80 pruebas
+python -m pytest tests/ -q        # 92 pruebas
 ```
 
 Estructura:
@@ -160,6 +204,7 @@ controlhorario/
     normativa.py   reglas del Estatuto de los Trabajadores
     informes.py    Excel, CSV y expediente para la Inspección
     migracion.py   importación de la versión 2024
+    arranque.py    arranque automático con el sistema
     ui/            interfaz (tema, componentes, diálogos, vistas)
 ```
 

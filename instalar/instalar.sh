@@ -22,7 +22,7 @@ azul()  { printf '\033[1;34m%s\033[0m\n' "$*"; }
 verde() { printf '\033[0;32m%s\033[0m\n' "$*"; }
 gris()  { printf '\033[0;90m%s\033[0m\n' "$*"; }
 rojo()  { printf '\033[0;31m%s\033[0m\n' "$*"; }
-paso()  { echo; azul "[$1/5] $2"; }
+paso()  { echo; azul "[$1/6] $2"; }
 
 echo
 azul "  ┌────────────────────────────────────────────┐"
@@ -184,6 +184,76 @@ ACCESO
     command -v gtk-update-icon-cache >/dev/null 2>&1 && \
         gtk-update-icon-cache -f -t "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
     verde "    Entrada creada en el menú de aplicaciones."
+fi
+
+# --------------------------------------------------------------------------- #
+paso 6 "Arranque automático..."
+
+if [ "$(uname -s)" = "Darwin" ]; then
+    AUTO="${HOME}/Library/LaunchAgents/com.pharmajava.controlhorario.plist"
+else
+    AUTO="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/controlhorario.desktop"
+fi
+
+QUIERE_ARRANQUE=0
+if [ "${CONTROLHORARIO_ARRANQUE:-}" = "1" ]; then
+    QUIERE_ARRANQUE=1
+elif [ "${CONTROLHORARIO_ARRANQUE:-}" = "0" ]; then
+    QUIERE_ARRANQUE=0
+elif [ -t 0 ]; then
+    gris "    Si este equipo es el terminal donde ficha la plantilla,"
+    gris "    conviene que el programa se abra solo al iniciar sesión."
+    printf '    ¿Abrir Control Horario al iniciar sesión? (s/N) '
+    read -r respuesta
+    case "$respuesta" in [SsYy]*) QUIERE_ARRANQUE=1 ;; esac
+fi
+
+if [ "$QUIERE_ARRANQUE" = "1" ]; then
+    mkdir -p "$(dirname "$AUTO")"
+    if [ "$(uname -s)" = "Darwin" ]; then
+        cat > "$AUTO" << AGENTE
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.pharmajava.controlhorario</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${ENTORNO}/bin/python</string>
+        <string>-m</string>
+        <string>controlhorario</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>${DESTINO}</string>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+AGENTE
+        launchctl load "$AUTO" 2>/dev/null || true
+    else
+        cat > "$AUTO" << ARRANQUE
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Control Horario
+Comment=Registro de jornada laboral
+Exec=${BIN}/controlhorario
+Path=${DESTINO}
+Icon=controlhorario
+Terminal=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=10
+ARRANQUE
+        chmod +x "$AUTO"
+    fi
+    verde "    Se abrirá automáticamente al iniciar sesión."
+    gris  "    Para quitarlo: Ajustes → Arranque, o borra $AUTO"
+else
+    rm -f "$AUTO"
+    gris "    Sin arranque automático (se puede activar en Ajustes → Arranque)."
 fi
 
 VERSION="$(grep -oP '__version__\s*=\s*"\K[^"]+' "${DESTINO}/controlhorario/version.py")"

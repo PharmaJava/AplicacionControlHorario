@@ -22,7 +22,8 @@ Write-Host "  Desinstalar $NombreApp" -ForegroundColor Blue
 Write-Host ""
 
 foreach ($carpeta in @([Environment]::GetFolderPath('Desktop'),
-                       (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'))) {
+                       (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'),
+                       (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'))) {
     $enlace = Join-Path $carpeta "$NombreApp.lnk"
     if (Test-Path $enlace) {
         Remove-Item $enlace -Force

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import datetime as dt
 import tkinter as tk
+from pathlib import Path
 import webbrowser
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 from typing import TYPE_CHECKING
 
-from .. import db, dominio as dom, informes, normativa
+from .. import arranque, db, dominio as dom, informes, migracion, normativa
 from ..config import directorio_datos
 from ..dominio import ErrorDominio, formatear_horas
 from ..seguridad import hash_secreto, verificar_secreto
@@ -947,6 +948,8 @@ class VistaAjustes(Vista):
 
         self._empresa()
         self._limites()
+        self._arranque()
+        self._historico()
         self._seguridad()
         self._mantenimiento()
 
@@ -1037,6 +1040,97 @@ class VistaAjustes(Vista):
             style="Suave.TLabel",
             wraplength=int(640 * self.tema.escala), justify="left",
         ).pack(anchor="w", pady=(12, 0))
+
+    def _arranque(self) -> None:
+        tarjeta = Tarjeta(self.interior, self.tema)
+        tarjeta.pack(fill="x", pady=(0, 12))
+        tarjeta.titulo(
+            "Arranque",
+            "Para el ordenador que hace de terminal de fichaje.",
+        )
+
+        self.arranca_solo = tk.BooleanVar(value=arranque.esta_activado())
+        ttk.Checkbutton(
+            tarjeta.cuerpo,
+            text="Iniciar Control Horario al encender el equipo",
+            variable=self.arranca_solo,
+            command=self.cambiar_arranque,
+        ).pack(anchor="w", pady=(12, 0))
+        ttk.Label(
+            tarjeta.cuerpo,
+            text=(
+                f"Se configura en {arranque.descripcion_ubicacion()}, sólo para "
+                "este usuario. No hace falta ser administrador y se puede "
+                "quitar desde aquí mismo."
+            ),
+            style="Suave.TLabel",
+            wraplength=int(640 * self.tema.escala), justify="left",
+        ).pack(anchor="w", padx=(24, 0), pady=(2, 10))
+
+        self.terminal = tk.BooleanVar(value=self.app.ajustes.modo_terminal)
+        ttk.Checkbutton(
+            tarjeta.cuerpo,
+            text="Abrir maximizado en la pantalla de Fichar",
+            variable=self.terminal,
+            command=self.cambiar_terminal,
+        ).pack(anchor="w")
+        ttk.Label(
+            tarjeta.cuerpo,
+            text=(
+                "Recomendado si el equipo es de uso compartido: al arrancar "
+                "queda listo para que la plantilla fiche."
+            ),
+            style="Suave.TLabel",
+            wraplength=int(640 * self.tema.escala), justify="left",
+        ).pack(anchor="w", padx=(24, 0), pady=(2, 0))
+
+    def _historico(self) -> None:
+        tarjeta = Tarjeta(self.interior, self.tema)
+        tarjeta.pack(fill="x", pady=(0, 12))
+        tarjeta.titulo(
+            "Histórico de la versión anterior",
+            "Importación de la base de datos de 2024.",
+        )
+
+        pendientes = migracion.pendiente_de_importar(self.app.conexion)
+        if pendientes:
+            texto = (
+                f"Quedan {pendientes} registro(s) por traer de la base de datos "
+                "antigua."
+            )
+            tono = "aviso"
+        elif migracion.hay_datos_antiguos():
+            texto = "El histórico antiguo ya está importado por completo."
+            tono = "exito"
+        else:
+            texto = "No se ha encontrado ninguna base de datos anterior."
+            tono = "neutro"
+        Pastilla(tarjeta.cuerpo, self.tema, texto, tono).pack(
+            anchor="w", pady=(12, 10)
+        )
+
+        fila = ttk.Frame(tarjeta.cuerpo, style="Superficie.TFrame")
+        fila.pack(fill="x")
+        ttk.Button(
+            fila, text="Importar histórico",
+            style="Primario.TButton" if pendientes else "TButton",
+            command=self.importar_historico,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            fila, text="Buscar otra base de datos...",
+            command=self.importar_de_otro_sitio,
+        ).pack(side="left")
+
+        ttk.Label(
+            tarjeta.cuerpo,
+            text=(
+                "Se puede repetir sin miedo: sólo trae lo que aún no estuviera, "
+                "nunca duplica fichajes y no modifica el fichero antiguo, del "
+                "que además se guarda una copia."
+            ),
+            style="Suave.TLabel",
+            wraplength=int(640 * self.tema.escala), justify="left",
+        ).pack(anchor="w", pady=(10, 0))
 
     def _seguridad(self) -> None:
         tarjeta = Tarjeta(self.interior, self.tema)
@@ -1149,6 +1243,95 @@ class VistaAjustes(Vista):
         )
         self.app.aviso("Límites guardados.", "exito")
         self.app.refrescar_todo()
+
+    def cambiar_arranque(self) -> None:
+        quiere = bool(self.arranca_solo.get())
+        try:
+            if quiere:
+                destino = arranque.activar()
+                self.app.aviso(f"El programa se abrirá solo. ({destino.name})", "exito")
+            else:
+                arranque.desactivar()
+                self.app.aviso("El programa ya no se abrirá solo.", "info")
+        except (arranque.ErrorArranque, OSError) as exc:
+            self.arranca_solo.set(not quiere)
+            messagebox.showerror(
+                "No se ha podido cambiar el arranque",
+                f"{exc}\n\nPuedes hacerlo a mano desde "
+                f"{arranque.descripcion_ubicacion()}.",
+                parent=self,
+            )
+            return
+        db.registrar_auditoria(
+            self.app.conexion, actor=self.app.actor(),
+            accion="ARRANQUE_AUTOMATICO",
+            detalle="activado" if quiere else "desactivado",
+        )
+
+    def cambiar_terminal(self) -> None:
+        self.app.ajustes.modo_terminal = bool(self.terminal.get())
+        self.app.ajustes.guardar()
+        self.app.aviso(
+            "Se aplicará al abrir el programa la próxima vez.", "info"
+        )
+
+    def importar_historico(self, ruta=None) -> None:
+        if ruta is None and not migracion.hay_datos_antiguos():
+            messagebox.showinfo(
+                "Nada que importar",
+                "No se ha encontrado la base de datos de la versión anterior "
+                f"en {directorio_datos()}.\n\n"
+                "Si la tienes en otro sitio, usa «Buscar otra base de datos».",
+                parent=self,
+            )
+            return
+        try:
+            resultado = migracion.importar(
+                self.app.conexion, self.app.cifrador, ruta,
+                actor=self.app.actor(),
+            )
+        except Exception as exc:  # noqa: BLE001 - se muestra tal cual al usuario
+            messagebox.showerror(
+                "No se ha podido importar",
+                f"{exc}\n\nLa base de datos antigua no se ha modificado.",
+                parent=self,
+            )
+            return
+
+        detalle = resultado.resumen()
+        if resultado.trabajadores:
+            detalle += (
+                "\n\nLos trabajadores importados no tienen PIN todavía. "
+                "Asígnales uno en «Equipo» para que puedan fichar."
+            )
+        if resultado.omitidos:
+            detalle += "\n\nOmitidos:\n" + "\n".join(
+                f"  · {o}" for o in resultado.omitidos[:8]
+            )
+        if resultado.respaldo:
+            detalle += f"\n\nCopia del fichero original: {resultado.respaldo}"
+        messagebox.showinfo("Importación del histórico", detalle, parent=self)
+        self.app.refrescar_todo()
+        self.app.navegar("ajustes")
+
+    def importar_de_otro_sitio(self) -> None:
+        elegido = filedialog.askopenfilename(
+            parent=self,
+            title="Elige la base de datos de la versión anterior",
+            filetypes=[("Base de datos SQLite", "*.db"), ("Todos", "*.*")],
+        )
+        if not elegido:
+            return
+        ruta = Path(elegido)
+        if not migracion.hay_datos_antiguos(ruta):
+            messagebox.showerror(
+                "No es una base de datos válida",
+                f"{ruta.name} no parece la base de datos del Control Horario "
+                "de 2024: no se encuentran las tablas «users» y «records».",
+                parent=self,
+            )
+            return
+        self.importar_historico(ruta)
 
     def cambiar_clave(self) -> None:
         datos = DialogoCambiarClave(self, self.tema).mostrar()
