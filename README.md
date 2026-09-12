@@ -257,6 +257,9 @@ controlhorario/
     ui/            interfaz (tema, componentes, diálogos, vistas)
 ```
 
-## Licencia
+## Autoría
 
-Uso interno de PharmaJava.
+Escrito y mantenido por **PharmaJava**.
+
+Programa de uso propio: no hay licencia pública ni se aceptan contribuciones
+externas.

@@ -34,7 +34,7 @@ def cifrador():
 def ajustes():
     from controlhorario.config import Ajustes
 
-    return Ajustes(empresa="Pruebas S.L.", cif="B00000000")
+    return Ajustes(empresa="Empresa de Pruebas", cif="B00000000")
 
 
 @pytest.fixture

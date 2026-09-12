@@ -11,7 +11,7 @@ from ..config import Ajustes, directorio_datos
 from ..empaquetado import ruta_recurso
 from ..dominio import Trabajador, listar_trabajadores
 from ..seguridad import Cifrador, hash_secreto, verificar_secreto
-from ..version import NOMBRE_LARGO, __version__
+from ..version import NOMBRE_LARGO, __version__, credito
 from .dialogos import AsistenteInicial, DialogoAcceso
 from .tema import Tema, activar_nitidez
 from .vistas import VISTAS
@@ -98,6 +98,11 @@ class Aplicacion(tk.Tk):
             command=self.cerrar_sesion, takefocus=False,
         )
         self.boton_sesion.pack(fill="x")
+
+        tk.Label(
+            pie, text=credito(), bg=p.superficie, fg=p.texto_suave,
+            font=self.tema.f_micro, anchor="w",
+        ).pack(fill="x", padx=16, pady=(10, 0))
 
         self.contenido = ttk.Frame(self)
         self.contenido.pack(side="left", fill="both", expand=True)

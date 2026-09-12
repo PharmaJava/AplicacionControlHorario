@@ -44,8 +44,7 @@ def test_excel_se_genera_con_todas_las_hojas(
         "Resumen", "Jornadas", "Fichajes", "Alertas", "Integridad"
     ]
     assert libro["Jornadas"].max_row == 4       # cabecera + 3 jornadas
-    assert "PharmaJava" not in str(libro["Resumen"]["B3"].value)
-    assert libro["Resumen"]["B3"].value == "Pruebas S.L."
+    assert libro["Resumen"]["B3"].value == "Empresa de Pruebas"
 
 
 def test_csv_usa_formato_espanol(conexion, ajustes, con_datos, periodo, tmp_path):

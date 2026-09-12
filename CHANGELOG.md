@@ -5,6 +5,15 @@
 Reescritura completa a partir de la versión de 2024. Los datos se conservan:
 al arrancar, el programa se ofrece a importar la base de datos anterior.
 
+### Autoría
+
+- Recuperada la firma del autor en la interfaz, que la versión de 2024 tenía en
+  una esquina y que la reescritura había eliminado. Aparece como **PharmaJava**,
+  sin razón social: es una persona, no una empresa. El año sale de la versión,
+  así que no hay que acordarse de actualizarlo.
+- La autoría consta también en los informes y en el expediente para la
+  Inspección.
+
 ### Instalador .exe
 
 - **Instalador único para Windows** (`ControlHorario-Instalador-*.exe`), hecho

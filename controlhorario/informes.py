@@ -34,7 +34,7 @@ from .dominio import (
     jornadas_de,
 )
 from .seguridad import Cifrador
-from .version import __version__
+from .version import AUTOR, __version__
 
 
 class ErrorInforme(Exception):
@@ -131,7 +131,7 @@ def exportar_excel(
         ("Centro de trabajo", ajustes.centro_trabajo or "(sin indicar)"),
         ("Periodo", f"{db.a_local(desde):%d/%m/%Y} a {db.a_local(hasta):%d/%m/%Y}"),
         ("Generado", dt.datetime.now().strftime("%d/%m/%Y %H:%M")),
-        ("Aplicación", f"Control Horario {__version__}"),
+        ("Aplicación", f"Control Horario {__version__} · {AUTOR}"),
         ("Base legal", "art. 34.9 del Estatuto de los Trabajadores"),
         ("Conservación", f"{ajustes.anios_conservacion} años"),
     ]
@@ -467,6 +467,7 @@ def expediente_itss(
         "version_formato": 1,
         "generado_utc": db.a_iso(db.ahora_utc()),
         "aplicacion": f"Control Horario {__version__}",
+        "autor": AUTOR,
         "empresa": {
             "razon_social": ajustes.empresa,
             "cif": ajustes.cif,
