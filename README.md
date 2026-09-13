@@ -89,6 +89,58 @@ Desinstalar: `./instalar/desinstalar.sh`
   (en Windows y macOS viene incluido; en Debian/Ubuntu: `sudo apt install python3-tk`)
 - Dependencias, que instala el propio instalador: `cryptography` y `openpyxl`
 
+### ¿Sustituye a la versión de 2024?
+
+**Los datos sí; el programa antiguo no, porque nunca llegó a instalarse.**
+
+La versión de 2024 se repartía como un fichero `control.py`, y de ahí se
+generó un `.exe` con alguna herramienta del tipo *auto-py-to-exe* o
+*PyInstaller*. Ésas producen un ejecutable suelto: **no crean entrada en
+«Agregar o quitar programas»**, así que Windows no tiene la versión antigua
+registrada y ningún instalador puede desinstalarla. Lo único que la hace
+visible es el acceso directo que se creara a mano.
+
+Al instalar la versión nueva:
+
+| | |
+|---|---|
+| Tus registros de 2024 | Se conservan y se importan |
+| `time_tracker.db` | Intacto, abierto sólo en lectura |
+| El `.exe` o el `control.py` antiguos | Siguen donde estén; el instalador no los toca |
+| Accesos directos antiguos | El instalador los detecta y **ofrece quitarlos** |
+
+Así que no hace falta desinstalar nada antes: instala la versión nueva y, si
+encuentra accesos directos a la antigua, te preguntará si los quita para que no
+te queden dos programas en el menú.
+
+Busca accesos directos que apunten a `control.py` o a un ejecutable cuyo
+nombre empiece por «control», enseña la ruta completa de cada uno y sólo borra
+si dices que sí. Deja en paz el Panel de control de Windows, que es
+`System32\\control.exe` y encajaría en esa descripción.
+
+Después te dice dónde ha quedado el ejecutable antiguo, porque **conviene
+borrarlo a mano**: se generó a partir del código que llevaba la contraseña
+escrita dentro, y de un `.exe` se puede extraer.
+
+Si prefieres hacerlo todo a mano, basta con borrar el acceso directo viejo y el
+ejecutable.
+
+> **Nunca borres `%APPDATA%\ControlHorario\time_tracker.db`** ni los
+> `backup_time_tracker_*.db` que hay junto a él. Son el registro original de
+> 2024 y hay que conservarlos cuatro años.
+
+Y un aviso práctico: mientras el programa viejo siga en el equipo, alguien
+podría abrirlo por error y fichar ahí. Esos fichajes irían a la base antigua y
+no aparecerían en la nueva hasta volver a importar (que se puede hacer las
+veces que haga falta, sin duplicar nada). Por eso conviene quitar el acceso
+directo antiguo cuanto antes.
+
+### Actualizar de una versión a otra
+
+De la 2026 en adelante no hay nada que hacer: se instala encima. El instalador
+comparte identidad entre versiones, así que reemplaza la anterior en vez de
+añadir una segunda entrada, y los datos ni se tocan.
+
 ### Actualizar desde la versión de 2024
 
 La actualización **respeta la base de datos que ya estás usando**:
