@@ -106,27 +106,64 @@ Type: filesandordirs; Name: "{app}\_internal"
   cuatro años (art. 34.9 ET).
   --------------------------------------------------------------------------- }
 
-function ApuntaAlProgramaViejo(const RutaEnlace: String): Boolean;
+function EsDelProgramaViejo(const Destino: String): Boolean;
+var
+  Nombre, Todo: String;
+begin
+  Todo := Lowercase(Destino);
+  Nombre := Lowercase(ExtractFileName(Destino));
+
+  { Acceso directo al script suelto, como se distribuía en 2024. }
+  if Pos('control.py', Todo) > 0 then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  { Nada de lo que viva en la carpeta de Windows: «Panel de control» es un
+    acceso directo a System32\control.exe y encajaría en la regla de abajo. }
+  if (Pos(Lowercase(ExpandConstant('{sys}')), Todo) > 0)
+     or (Pos(Lowercase(ExpandConstant('{win}')), Todo) > 0) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  { Ni lo que acabamos de instalar. }
+  if Pos(Lowercase(ExpandConstant('{app}')), Todo) > 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  { O al .exe que se generase con auto-py-to-exe, PyInstaller o similar. El
+    nombre lo eligió quien lo creó, así que se acepta cualquier ejecutable que
+    empiece por «control». Se enseña la ruta completa antes de borrar nada,
+    para poder descartar cualquier otro falso positivo. }
+  Result := (Copy(Nombre, 1, 7) = 'control') and (Pos('.exe', Nombre) > 0);
+end;
+
+function DestinoDelAcceso(const RutaEnlace: String): String;
 var
   Shell, Enlace: Variant;
-  Destino: String;
 begin
-  Result := False;
+  Result := '';
   try
     Shell := CreateOleObject('WScript.Shell');
     Enlace := Shell.CreateShortcut(RutaEnlace);
-    Destino := Lowercase(Enlace.TargetPath + ' ' + Enlace.Arguments);
-    Result := Pos('control.py', Destino) > 0;
+    Result := Enlace.TargetPath;
+    if Enlace.Arguments <> '' then
+      Result := Result + ' ' + Enlace.Arguments;
   except
     { Un acceso directo ilegible simplemente no cuenta. }
-    Result := False;
+    Result := '';
   end;
 end;
 
-procedure BuscarAccesosViejos(const Carpeta: String; Lista: TStringList);
+procedure BuscarAccesosViejos(const Carpeta: String; Enlaces, Destinos: TStringList);
 var
   Encontrado: TFindRec;
-  Ruta: String;
+  Ruta, Destino: String;
 begin
   if not DirExists(Carpeta) then
     Exit;
@@ -135,8 +172,13 @@ begin
     try
       repeat
         Ruta := AddBackslash(Carpeta) + Encontrado.Name;
-        if ApuntaAlProgramaViejo(Ruta) then
-          Lista.Add(Ruta);
+        Destino := DestinoDelAcceso(Ruta);
+        if (Destino <> '') and EsDelProgramaViejo(Destino)
+           and (Enlaces.IndexOf(Ruta) < 0) then
+        begin
+          Enlaces.Add(Ruta);
+          Destinos.Add(Destino);
+        end;
       until not FindNext(Encontrado);
     finally
       FindClose(Encontrado);
@@ -146,42 +188,67 @@ end;
 
 procedure RetirarVersionAntigua;
 var
-  Lista: TStringList;
-  Detalle: String;
+  Enlaces, Destinos: TStringList;
+  Detalle, Programas: String;
   i: Integer;
 begin
-  Lista := TStringList.Create;
+  Enlaces := TStringList.Create;
+  Destinos := TStringList.Create;
   try
     try
-      BuscarAccesosViejos(ExpandConstant('{userdesktop}'), Lista);
-      BuscarAccesosViejos(ExpandConstant('{commondesktop}'), Lista);
-      BuscarAccesosViejos(ExpandConstant('{userprograms}'), Lista);
-      BuscarAccesosViejos(ExpandConstant('{commonprograms}'), Lista);
-      BuscarAccesosViejos(ExpandConstant('{userstartup}'), Lista);
+      BuscarAccesosViejos(ExpandConstant('{userdesktop}'), Enlaces, Destinos);
+      BuscarAccesosViejos(ExpandConstant('{commondesktop}'), Enlaces, Destinos);
+      BuscarAccesosViejos(ExpandConstant('{userprograms}'), Enlaces, Destinos);
+      BuscarAccesosViejos(ExpandConstant('{commonprograms}'), Enlaces, Destinos);
+      BuscarAccesosViejos(ExpandConstant('{userstartup}'), Enlaces, Destinos);
+      BuscarAccesosViejos(ExpandConstant('{userappdata}') +
+        '\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar',
+        Enlaces, Destinos);
     except
       Exit;
     end;
 
-    if Lista.Count = 0 then
+    if Enlaces.Count = 0 then
       Exit;
 
     Detalle := '';
-    for i := 0 to Lista.Count - 1 do
-      Detalle := Detalle + '    ' + ExtractFileName(Lista[i]) + #13#10;
+    for i := 0 to Enlaces.Count - 1 do
+      Detalle := Detalle + '  • ' + ExtractFileName(Enlaces[i]) + #13#10 +
+                 '      → ' + Destinos[i] + #13#10;
 
     if MsgBox(
-      'Se han encontrado accesos directos a la versión anterior del programa:'
+      'Se han encontrado accesos directos que parecen de la versión anterior:'
       + #13#10#13#10 + Detalle + #13#10 +
       '¿Quieres quitarlos para que sólo quede el programa nuevo?' + #13#10#13#10 +
-      'Se borran únicamente los accesos directos. Ni el programa antiguo ni ' +
-      'los registros de jornada se tocan.',
-      mbConfirmation, MB_YESNO) = IDYES then
+      'Comprueba las rutas antes de aceptar. Se borran únicamente los accesos ' +
+      'directos: ni el programa antiguo ni los registros de jornada se tocan.',
+      mbConfirmation, MB_YESNO) <> IDYES then
+      Exit;
+
+    Programas := '';
+    for i := 0 to Enlaces.Count - 1 do
     begin
-      for i := 0 to Lista.Count - 1 do
-        DeleteFile(Lista[i]);
+      DeleteFile(Enlaces[i]);
+      if Pos('.exe', Lowercase(Destinos[i])) > 0 then
+        Programas := Programas + '  ' + Destinos[i] + #13#10;
     end;
+
+    { El ejecutable antiguo no se borra: es un fichero del usuario y puede
+      estar en una carpeta con más cosas. Pero conviene decir dónde está,
+      porque se construyó a partir del control.py que llevaba la contraseña
+      escrita dentro y de un .exe se puede extraer. }
+    if Programas <> '' then
+      MsgBox(
+        'Accesos directos retirados.' + #13#10#13#10 +
+        'El programa antiguo sigue en el equipo:' + #13#10#13#10 + Programas +
+        #13#10 + 'Conviene borrarlo a mano: se generó a partir del código que ' +
+        'llevaba la contraseña escrita dentro, y de un ejecutable se puede ' +
+        'extraer.' + #13#10#13#10 +
+        'No borres la carpeta de datos: ahí están los registros de jornada.',
+        mbInformation, MB_OK);
   finally
-    Lista.Free;
+    Destinos.Free;
+    Enlaces.Free;
   end;
 end;
 

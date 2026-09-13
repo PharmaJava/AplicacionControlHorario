@@ -58,11 +58,16 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
 
 ### Convivencia con la versión de 2024
 
-- El instalador **detecta los accesos directos de la versión antigua** —
-  aquélla era un `control.py` suelto, sin instalador, así que Windows no la
-  tiene registrada y nadie puede desinstalarla— y ofrece quitarlos, para no
-  acabar con dos programas en el menú. Sólo borra accesos directos, previa
-  confirmación, y nunca la base de datos.
+- El instalador **detecta los accesos directos de la versión antigua** y
+  ofrece quitarlos, para no acabar con dos programas en el menú. Aquella
+  versión se empaquetó con una herramienta del tipo *auto-py-to-exe*, que
+  produce un ejecutable suelto sin entrada en «Agregar o quitar programas», de
+  modo que Windows no la tiene registrada y nadie puede desinstalarla.
+- Se reconocen tanto los accesos al `control.py` como a un ejecutable cuyo
+  nombre empiece por «control», excluyendo la carpeta de Windows para no tocar
+  el Panel de control, que es `System32\control.exe`. Se enseña la ruta
+  completa de cada uno y sólo se borra previa confirmación; nunca la base de
+  datos ni el ejecutable, del que sólo se indica dónde está.
 - Si encuentra `time_tracker.db`, avisa de que no debe borrarse: es el registro
   original y hay que conservarlo cuatro años.
 
