@@ -93,6 +93,126 @@ Filename: "{app}\{#MiEjecutable}"; Description: "{cm:AbrirPrograma}"; \
 Type: filesandordirs; Name: "{app}\_internal"
 
 [Code]
+
+{ ---------------------------------------------------------------------------
+  Limpieza de la versión de 2024
+
+  Aquella versión era un fichero control.py suelto, sin instalador: Windows no
+  la tiene registrada y este instalador no puede desinstalarla. Lo único que la
+  hace visible son los accesos directos que se crearan a mano, así que se
+  buscan y se ofrece quitarlos para no acabar con dos programas en el menú.
+
+  Nunca se toca la base de datos: los registros de 2024 hay que conservarlos
+  cuatro años (art. 34.9 ET).
+  --------------------------------------------------------------------------- }
+
+function ApuntaAlProgramaViejo(const RutaEnlace: String): Boolean;
+var
+  Shell, Enlace: Variant;
+  Destino: String;
+begin
+  Result := False;
+  try
+    Shell := CreateOleObject('WScript.Shell');
+    Enlace := Shell.CreateShortcut(RutaEnlace);
+    Destino := Lowercase(Enlace.TargetPath + ' ' + Enlace.Arguments);
+    Result := Pos('control.py', Destino) > 0;
+  except
+    { Un acceso directo ilegible simplemente no cuenta. }
+    Result := False;
+  end;
+end;
+
+procedure BuscarAccesosViejos(const Carpeta: String; Lista: TStringList);
+var
+  Encontrado: TFindRec;
+  Ruta: String;
+begin
+  if not DirExists(Carpeta) then
+    Exit;
+  if FindFirst(AddBackslash(Carpeta) + '*.lnk', Encontrado) then
+  begin
+    try
+      repeat
+        Ruta := AddBackslash(Carpeta) + Encontrado.Name;
+        if ApuntaAlProgramaViejo(Ruta) then
+          Lista.Add(Ruta);
+      until not FindNext(Encontrado);
+    finally
+      FindClose(Encontrado);
+    end;
+  end;
+end;
+
+procedure RetirarVersionAntigua;
+var
+  Lista: TStringList;
+  Detalle: String;
+  i: Integer;
+begin
+  Lista := TStringList.Create;
+  try
+    try
+      BuscarAccesosViejos(ExpandConstant('{userdesktop}'), Lista);
+      BuscarAccesosViejos(ExpandConstant('{commondesktop}'), Lista);
+      BuscarAccesosViejos(ExpandConstant('{userprograms}'), Lista);
+      BuscarAccesosViejos(ExpandConstant('{commonprograms}'), Lista);
+      BuscarAccesosViejos(ExpandConstant('{userstartup}'), Lista);
+    except
+      Exit;
+    end;
+
+    if Lista.Count = 0 then
+      Exit;
+
+    Detalle := '';
+    for i := 0 to Lista.Count - 1 do
+      Detalle := Detalle + '    ' + ExtractFileName(Lista[i]) + #13#10;
+
+    if MsgBox(
+      'Se han encontrado accesos directos a la versión anterior del programa:'
+      + #13#10#13#10 + Detalle + #13#10 +
+      '¿Quieres quitarlos para que sólo quede el programa nuevo?' + #13#10#13#10 +
+      'Se borran únicamente los accesos directos. Ni el programa antiguo ni ' +
+      'los registros de jornada se tocan.',
+      mbConfirmation, MB_YESNO) = IDYES then
+    begin
+      for i := 0 to Lista.Count - 1 do
+        DeleteFile(Lista[i]);
+    end;
+  finally
+    Lista.Free;
+  end;
+end;
+
+procedure AvisarDelHistorico;
+var
+  BaseAntigua: String;
+begin
+  BaseAntigua := ExpandConstant('{userappdata}\ControlHorario\time_tracker.db');
+  if not FileExists(BaseAntigua) then
+    Exit;
+
+  MsgBox(
+    'Se ha encontrado la base de datos de la versión anterior.' + #13#10#13#10 +
+    'Al abrir el programa te ofrecerá importarla: acepta, y tus registros ' +
+    'desde 2024 estarán todos dentro.' + #13#10#13#10 +
+    'NO borres este fichero:' + #13#10 +
+    BaseAntigua + #13#10#13#10 +
+    'Es el registro original y la ley obliga a conservarlo cuatro años. El ' +
+    'programa lo abre en modo sólo lectura y nunca lo modifica.',
+    mbInformation, MB_OK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    RetirarVersionAntigua;
+    AvisarDelHistorico;
+  end;
+end;
+
 { Avisa al desinstalar de que los datos se conservan y dónde están. }
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var

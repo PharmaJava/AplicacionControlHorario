@@ -56,6 +56,16 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
   Inspección no llevan el nombre del autor: identifican a la empresa y al
   programa, que es lo que la Inspección necesita.
 
+### Convivencia con la versión de 2024
+
+- El instalador **detecta los accesos directos de la versión antigua** —
+  aquélla era un `control.py` suelto, sin instalador, así que Windows no la
+  tiene registrada y nadie puede desinstalarla— y ofrece quitarlos, para no
+  acabar con dos programas en el menú. Sólo borra accesos directos, previa
+  confirmación, y nunca la base de datos.
+- Si encuentra `time_tracker.db`, avisa de que no debe borrarse: es el registro
+  original y hay que conservarlo cuatro años.
+
 ### Instalador .exe
 
 - **Instalador único para Windows** (`ControlHorario-Instalador-*.exe`), hecho

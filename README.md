@@ -89,6 +89,47 @@ Desinstalar: `./instalar/desinstalar.sh`
   (en Windows y macOS viene incluido; en Debian/Ubuntu: `sudo apt install python3-tk`)
 - Dependencias, que instala el propio instalador: `cryptography` y `openpyxl`
 
+### ¿Sustituye a la versión de 2024?
+
+**Los datos sí; el programa antiguo no, porque nunca llegó a instalarse.**
+
+La versión de 2024 era un fichero `control.py` suelto: no tenía instalador ni
+aparecía en «Agregar o quitar programas», así que Windows no la tiene
+registrada y ningún instalador puede desinstalarla. Lo único que la hace
+visible es el acceso directo que se creara a mano.
+
+Al instalar la versión nueva:
+
+| | |
+|---|---|
+| Tus registros de 2024 | Se conservan y se importan |
+| `time_tracker.db` | Intacto, abierto sólo en lectura |
+| El fichero `control.py` | Sigue donde esté; el instalador no lo toca |
+| Accesos directos antiguos | El instalador los detecta y **ofrece quitarlos** |
+
+Así que no hace falta desinstalar nada antes: instala la versión nueva y, si
+encuentra accesos directos a la antigua, te preguntará si los quita para que no
+te queden dos programas en el menú.
+
+Si prefieres hacerlo a mano, basta con borrar el acceso directo viejo y, si
+quieres, el propio `control.py`.
+
+> **Nunca borres `%APPDATA%\ControlHorario\time_tracker.db`** ni los
+> `backup_time_tracker_*.db` que hay junto a él. Son el registro original de
+> 2024 y hay que conservarlos cuatro años.
+
+Y un aviso práctico: mientras el programa viejo siga en el equipo, alguien
+podría abrirlo por error y fichar ahí. Esos fichajes irían a la base antigua y
+no aparecerían en la nueva hasta volver a importar (que se puede hacer las
+veces que haga falta, sin duplicar nada). Por eso conviene quitar el acceso
+directo antiguo cuanto antes.
+
+### Actualizar de una versión a otra
+
+De la 2026 en adelante no hay nada que hacer: se instala encima. El instalador
+comparte identidad entre versiones, así que reemplaza la anterior en vez de
+añadir una segunda entrada, y los datos ni se tocan.
+
 ### Actualizar desde la versión de 2024
 
 La actualización **respeta la base de datos que ya estás usando**:
