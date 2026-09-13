@@ -29,6 +29,8 @@ permissions:
 jobs:
   construir:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Descargar el código
@@ -127,11 +129,11 @@ jobs:
           if-no-files-found: error
 
       - name: Publicar la versión estable
-        # Con una etiqueta v*, o en cuanto main estrena un número de versión
-        # que todavía no tiene release. Así basta con subir el número en
-        # controlhorario/version.py para que salga una versión estable, que es
-        # la que apunta el enlace .../releases/latest/...
-        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+        # Sólo para etiquetas v*. La versión estable de la línea principal la
+        # publica el trabajo 'fusionar', después de integrar la rama: una
+        # compilación de main casi nunca llega a ocurrir, porque las fusiones
+        # hechas con el token de Actions no disparan workflows.
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -302,3 +304,61 @@ jobs:
           # ancestro de main y las PR siguientes salen limpias en vez de
           # arrastrar cambios que ya estaban aplicados.
           gh pr merge "$numero" --repo "$GITHUB_REPOSITORY" --merge
+
+      - name: Recuperar los ejecutables ya compilados
+        uses: actions/download-artifact@v5
+        with:
+          name: ControlHorario-Windows-${{ needs.construir.outputs.version }}
+          path: dist
+
+      - name: Publicar la versión estable si estrena número
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.construir.outputs.version }}
+        # Se hace aquí, ya con el código en main, y no en la compilación: basta
+        # con subir el número en controlhorario/version.py para que salga una
+        # release numerada. Es la que apunta .../releases/latest/download/...
+        run: |
+          set -euo pipefail
+
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "La versión $VERSION ya está publicada."
+            echo "Sube el número en controlhorario/version.py para sacar otra."
+            exit 0
+          fi
+
+          cat > notas.md <<NOTAS
+          ## Control Horario $VERSION
+
+          ### Descarga
+
+          Enlace permanente, siempre la última versión estable:
+
+          \`\`\`
+          https://github.com/$GITHUB_REPOSITORY/releases/latest/download/ControlHorario-Instalador.exe
+          \`\`\`
+
+          | Fichero | Para qué |
+          |---|---|
+          | **ControlHorario-Instalador.exe** | Instala el programa y crea el acceso directo |
+          | ControlHorario-Portable.exe | Se ejecuta sin instalar nada |
+
+          No hace falta tener Python: va todo dentro.
+
+          ### Al abrirlo, Windows avisará
+
+          El ejecutable no está firmado digitalmente, así que SmartScreen mostrará
+          *"Windows protegió su PC"*. Pulsa **Más información → Ejecutar de todas
+          formas**.
+
+          ### Los datos
+
+          Se guardan en \`%APPDATA%\ControlHorario\`, aparte del programa, y cada
+          instalación es independiente. Instalar, actualizar o desinstalar no los
+          toca: la ley obliga a conservarlos cuatro años.
+          NOTAS
+
+          gh release create "v$VERSION" dist/*.exe --repo "$GITHUB_REPOSITORY" \
+            --title "Control Horario $VERSION" --notes-file notas.md --latest
+
+          echo "Publicada la versión estable v$VERSION."
