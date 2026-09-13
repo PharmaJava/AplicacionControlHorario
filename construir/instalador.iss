@@ -94,6 +94,13 @@ Type: filesandordirs; Name: "{app}\_internal"
 
 [Code]
 
+{ El preprocesador de Inno interpreta como directiva cualquier línea que
+  empiece por '#', así que escribir #13#10 al principio de una línea rompe la
+  compilación. Con una constante el problema desaparece y además se lee mejor. }
+const
+  SALTO = #13#10;
+  SALTO2 = #13#10#13#10;
+
 { ---------------------------------------------------------------------------
   Limpieza de la versión de 2024
 
@@ -213,13 +220,13 @@ begin
 
     Detalle := '';
     for i := 0 to Enlaces.Count - 1 do
-      Detalle := Detalle + '  • ' + ExtractFileName(Enlaces[i]) + #13#10 +
-                 '      → ' + Destinos[i] + #13#10;
+      Detalle := Detalle + '  • ' + ExtractFileName(Enlaces[i]) + SALTO +
+                 '      → ' + Destinos[i] + SALTO;
 
     if MsgBox(
       'Se han encontrado accesos directos que parecen de la versión anterior:'
-      + #13#10#13#10 + Detalle + #13#10 +
-      '¿Quieres quitarlos para que sólo quede el programa nuevo?' + #13#10#13#10 +
+      + SALTO2 + Detalle + SALTO +
+      '¿Quieres quitarlos para que sólo quede el programa nuevo?' + SALTO2 +
       'Comprueba las rutas antes de aceptar. Se borran únicamente los accesos ' +
       'directos: ni el programa antiguo ni los registros de jornada se tocan.',
       mbConfirmation, MB_YESNO) <> IDYES then
@@ -230,7 +237,7 @@ begin
     begin
       DeleteFile(Enlaces[i]);
       if Pos('.exe', Lowercase(Destinos[i])) > 0 then
-        Programas := Programas + '  ' + Destinos[i] + #13#10;
+        Programas := Programas + '  ' + Destinos[i] + SALTO;
     end;
 
     { El ejecutable antiguo no se borra: es un fichero del usuario y puede
@@ -239,11 +246,11 @@ begin
       escrita dentro y de un .exe se puede extraer. }
     if Programas <> '' then
       MsgBox(
-        'Accesos directos retirados.' + #13#10#13#10 +
-        'El programa antiguo sigue en el equipo:' + #13#10#13#10 + Programas +
-        #13#10 + 'Conviene borrarlo a mano: se generó a partir del código que ' +
+        'Accesos directos retirados.' + SALTO2 +
+        'El programa antiguo sigue en el equipo:' + SALTO2 + Programas +
+        SALTO + 'Conviene borrarlo a mano: se generó a partir del código que ' +
         'llevaba la contraseña escrita dentro, y de un ejecutable se puede ' +
-        'extraer.' + #13#10#13#10 +
+        'extraer.' + SALTO2 +
         'No borres la carpeta de datos: ahí están los registros de jornada.',
         mbInformation, MB_OK);
   finally
@@ -261,11 +268,11 @@ begin
     Exit;
 
   MsgBox(
-    'Se ha encontrado la base de datos de la versión anterior.' + #13#10#13#10 +
+    'Se ha encontrado la base de datos de la versión anterior.' + SALTO2 +
     'Al abrir el programa te ofrecerá importarla: acepta, y tus registros ' +
-    'desde 2024 estarán todos dentro.' + #13#10#13#10 +
-    'NO borres este fichero:' + #13#10 +
-    BaseAntigua + #13#10#13#10 +
+    'desde 2024 estarán todos dentro.' + SALTO2 +
+    'NO borres este fichero:' + SALTO +
+    BaseAntigua + SALTO2 +
     'Es el registro original y la ley obliga a conservarlo cuatro años. El ' +
     'programa lo abre en modo sólo lectura y nunca lo modifica.',
     mbInformation, MB_OK);
@@ -290,10 +297,10 @@ begin
     CarpetaDatos := ExpandConstant('{userappdata}\ControlHorario');
     if DirExists(CarpetaDatos) then
       MsgBox(
-        'Control Horario se ha desinstalado.' + #13#10#13#10 +
+        'Control Horario se ha desinstalado.' + SALTO2 +
         'Los registros de jornada, la clave de cifrado y las copias de ' +
-        'seguridad se conservan en:' + #13#10#13#10 +
-        CarpetaDatos + #13#10#13#10 +
+        'seguridad se conservan en:' + SALTO2 +
+        CarpetaDatos + SALTO2 +
         'La ley obliga a guardarlos cuatro años, por eso no se borran. ' +
         'Si de verdad quieres eliminarlos, borra esa carpeta a mano.',
         mbInformation, MB_OK);
