@@ -100,12 +100,20 @@ jobs:
                   'construir\instalador.iss'
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup ha fallado.' }
 
-      - name: Renombrar la versión portátil
+      - name: Nombrar los ejecutables
         shell: pwsh
+        # Cada ejecutable se publica dos veces: con la versión en el nombre,
+        # para dejar constancia de qué se entregó, y con un nombre fijo, que es
+        # lo que permite dar a una empresa un enlace de descarga que no caduca
+        # ni cambia al sacar una versión nueva.
         run: |
           $v = '${{ steps.version.outputs.version }}'
           Move-Item dist\ControlHorarioPortable.exe `
                     "dist\ControlHorario-Portable-$v.exe" -Force
+          Copy-Item "dist\ControlHorario-Instalador-$v.exe" `
+                    'dist\ControlHorario-Instalador.exe' -Force
+          Copy-Item "dist\ControlHorario-Portable-$v.exe" `
+                    'dist\ControlHorario-Portable.exe' -Force
           Get-ChildItem dist\*.exe | ForEach-Object {
             "{0,-48} {1,7:N1} MB" -f $_.Name, ($_.Length / 1MB)
           }
@@ -119,7 +127,11 @@ jobs:
           if-no-files-found: error
 
       - name: Publicar la versión estable
-        if: startsWith(github.ref, 'refs/tags/v')
+        # Con una etiqueta v*, o en cuanto main estrena un número de versión
+        # que todavía no tiene release. Así basta con subir el número en
+        # controlhorario/version.py para que salga una versión estable, que es
+        # la que apunta el enlace .../releases/latest/...
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -157,11 +169,17 @@ jobs:
           # ejecutables en vez de fallar por intentar crearla dos veces.
           gh release view "v$v" *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "La release v$v ya existe: subiendo los ejecutables."
-            gh release upload "v$v" @ficheros --clobber
+            if ('${{ github.ref_type }}' -eq 'tag') {
+              Write-Host "La release v$v ya existe: se refrescan los ficheros."
+              gh release upload "v$v" @ficheros --clobber
+            } else {
+              Write-Host "La versión $v ya está publicada. Sube el número en"
+              Write-Host "controlhorario/version.py para sacar una nueva."
+              exit 0
+            }
           } else {
             gh release create "v$v" @ficheros `
-              --title "Control Horario $v" --notes $notas
+              --title "Control Horario $v" --notes $notas --latest
           }
           if ($LASTEXITCODE -ne 0) { throw 'No se han podido publicar los ejecutables.' }
 
@@ -253,16 +271,29 @@ jobs:
               echo "La rama no aporta cambios sobre ${BASE}. Nada que fusionar."
               exit 0
             fi
-            # Crear una PR desde Actions requiere activar «Allow GitHub Actions
-            # to create and approve pull requests» en los ajustes del
-            # repositorio, y está desactivado por defecto. Fusionar una que ya
-            # existe sí está permitido, así que aquí sólo se avisa: quien
-            # empuja la rama es quien abre la PR.
-            echo "::warning title=Sin PR que fusionar::La rama $RAMA tiene" \
-                 "cambios sin fusionar y no hay ninguna PR abierta. El .exe se" \
-                 "ha publicado igualmente. Abre una PR y el siguiente cambio la" \
-                 "fusionará solo, o activa «Allow GitHub Actions to create and" \
-                 "approve pull requests» en Settings → Actions → General."
+            echo "No hay ninguna PR abierta para $RAMA; se crea una."
+            # Requiere «Allow GitHub Actions to create and approve pull
+            # requests» en Settings → Actions → General. Si estuviera
+            # desactivado, esto falla y el aviso de abajo lo explica.
+            if ! gh pr create --repo "$GITHUB_REPOSITORY" \
+                 --base "$BASE" --head "$RAMA" \
+                 --title "$(git log -1 --pretty=%s)" \
+                 --body "$(printf '%s\n\n%s' \
+                    'Creada automáticamente tras una compilación correcta en Windows.' \
+                    'Se fusiona sola: las pruebas y el arranque del ejecutable ya han pasado.')"
+            then
+              echo "::warning title=No se ha podido crear la PR::Actions no tiene" \
+                   "permiso para abrir pull requests. Actívalo en Settings →" \
+                   "Actions → General → Workflow permissions. El .exe se ha" \
+                   "publicado igualmente."
+              exit 0
+            fi
+            numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
+                       --state open --json number --jq '.[0].number // empty')
+          fi
+
+          if [ -z "$numero" ]; then
+            echo "::warning::No se ha podido determinar la PR de $RAMA."
             exit 0
           fi
 
