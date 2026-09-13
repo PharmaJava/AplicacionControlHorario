@@ -21,9 +21,31 @@ ningún servidor.
 
 ### Windows (recomendado): un único .exe
 
-Descarga el instalador desde [**Releases**](../../releases) y haz doble
-clic. Ahí hay siempre dos opciones: *Última versión*, que se actualiza sola con
-cada cambio, y las versiones numeradas, que no se mueven.
+**Enlace de descarga directa**, siempre la última versión estable:
+
+```
+https://github.com/PharmaJava/AplicacionControlHorario/releases/latest/download/ControlHorario-Instalador.exe
+```
+
+Ese enlace no caduca ni cambia al publicar una versión nueva, así que se puede
+pasar tal cual a quien vaya a instalarlo.
+
+> **El .exe no está en el código fuente.** Los ejecutables no se guardan en el
+> repositorio: se compilan y se publican en [Releases](../../releases). En la
+> carpeta `instalar/` sólo está el instalador *desde el código*, que es otra
+> cosa y necesita Python.
+
+| Descarga | Cuándo usarla |
+|---|---|
+| [Última versión estable](../../releases/latest) | Lo normal, y lo que se comparte |
+| [Última compilación](../../releases/tag/ultima) | Lo más reciente, aún sin numerar |
+
+Y dentro de cada una:
+
+| Fichero | Para qué |
+|---|---|
+| `ControlHorario-Instalador.exe` | Instala el programa y crea el acceso directo |
+| `ControlHorario-Portable.exe` | Se ejecuta sin instalar, para probarlo o llevarlo en un pendrive |
 
 | Fichero | Para qué |
 |---|---|
@@ -110,6 +132,30 @@ Se configura sólo para el usuario actual, sin permisos de administrador:
 | macOS | `~/Library/LaunchAgents/com.pharmajava.controlhorario.plist` |
 
 Se quita desde la misma casilla, o borrando ese archivo.
+
+## Instalarlo en otra empresa
+
+Cada instalación es **completamente independiente**: su propia base de datos,
+su propia clave de cifrado y sus propios datos de empresa. No hay servidor
+central y nada sale del ordenador donde se instala, así que los datos de una
+empresa no pueden llegar a otra ni a quien reparte el programa.
+
+Lo que hay que hacer en cada equipo:
+
+1. Descargar el instalador del enlace de arriba y hacer doble clic.
+2. Aceptar el aviso de Windows (*Más información → Ejecutar de todas formas*).
+3. Al abrirlo, rellenar razón social, CIF y centro de trabajo, y elegir una
+   contraseña de administración **distinta en cada empresa**.
+4. Dar de alta a la plantilla en **Equipo**. Cada persona recibe su código y su
+   PIN.
+
+Conviene decirle a cada empresa dos cosas:
+
+- **Las copias de seguridad son suyas.** El programa las hace solo al cerrar,
+  en su carpeta de datos, pero si se pierde el disco se pierden. Hay que
+  llevarlas a otro soporte, y con ellas el fichero `clave.key`.
+- **El registro es suyo y deben conservarlo cuatro años.** Quien responde ante
+  la Inspección es la empresa, no quien le pasó el programa.
 
 ## Primeros pasos
 

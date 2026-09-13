@@ -29,6 +29,8 @@ permissions:
 jobs:
   construir:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Descargar el código
@@ -100,12 +102,20 @@ jobs:
                   'construir\instalador.iss'
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup ha fallado.' }
 
-      - name: Renombrar la versión portátil
+      - name: Nombrar los ejecutables
         shell: pwsh
+        # Cada ejecutable se publica dos veces: con la versión en el nombre,
+        # para dejar constancia de qué se entregó, y con un nombre fijo, que es
+        # lo que permite dar a una empresa un enlace de descarga que no caduca
+        # ni cambia al sacar una versión nueva.
         run: |
           $v = '${{ steps.version.outputs.version }}'
           Move-Item dist\ControlHorarioPortable.exe `
                     "dist\ControlHorario-Portable-$v.exe" -Force
+          Copy-Item "dist\ControlHorario-Instalador-$v.exe" `
+                    'dist\ControlHorario-Instalador.exe' -Force
+          Copy-Item "dist\ControlHorario-Portable-$v.exe" `
+                    'dist\ControlHorario-Portable.exe' -Force
           Get-ChildItem dist\*.exe | ForEach-Object {
             "{0,-48} {1,7:N1} MB" -f $_.Name, ($_.Length / 1MB)
           }
@@ -119,6 +129,10 @@ jobs:
           if-no-files-found: error
 
       - name: Publicar la versión estable
+        # Sólo para etiquetas v*. La versión estable de la línea principal la
+        # publica el trabajo 'fusionar', después de integrar la rama: una
+        # compilación de main casi nunca llega a ocurrir, porque las fusiones
+        # hechas con el token de Actions no disparan workflows.
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
@@ -157,11 +171,17 @@ jobs:
           # ejecutables en vez de fallar por intentar crearla dos veces.
           gh release view "v$v" *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "La release v$v ya existe: subiendo los ejecutables."
-            gh release upload "v$v" @ficheros --clobber
+            if ('${{ github.ref_type }}' -eq 'tag') {
+              Write-Host "La release v$v ya existe: se refrescan los ficheros."
+              gh release upload "v$v" @ficheros --clobber
+            } else {
+              Write-Host "La versión $v ya está publicada. Sube el número en"
+              Write-Host "controlhorario/version.py para sacar una nueva."
+              exit 0
+            }
           } else {
             gh release create "v$v" @ficheros `
-              --title "Control Horario $v" --notes $notas
+              --title "Control Horario $v" --notes $notas --latest
           }
           if ($LASTEXITCODE -ne 0) { throw 'No se han podido publicar los ejecutables.' }
 
@@ -235,6 +255,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fusionar la rama, creando la PR si hace falta
+        id: fusion
         env:
           GH_TOKEN: ${{ github.token }}
           RAMA: ${{ github.ref_name }}
@@ -251,18 +272,34 @@ jobs:
           if [ -z "$numero" ]; then
             if git diff --quiet "origin/${BASE}...HEAD"; then
               echo "La rama no aporta cambios sobre ${BASE}. Nada que fusionar."
+              echo "fusionada=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            # Crear una PR desde Actions requiere activar «Allow GitHub Actions
-            # to create and approve pull requests» en los ajustes del
-            # repositorio, y está desactivado por defecto. Fusionar una que ya
-            # existe sí está permitido, así que aquí sólo se avisa: quien
-            # empuja la rama es quien abre la PR.
-            echo "::warning title=Sin PR que fusionar::La rama $RAMA tiene" \
-                 "cambios sin fusionar y no hay ninguna PR abierta. El .exe se" \
-                 "ha publicado igualmente. Abre una PR y el siguiente cambio la" \
-                 "fusionará solo, o activa «Allow GitHub Actions to create and" \
-                 "approve pull requests» en Settings → Actions → General."
+            echo "No hay ninguna PR abierta para $RAMA; se crea una."
+            # Requiere «Allow GitHub Actions to create and approve pull
+            # requests» en Settings → Actions → General. Si estuviera
+            # desactivado, esto falla y el aviso de abajo lo explica.
+            if ! gh pr create --repo "$GITHUB_REPOSITORY" \
+                 --base "$BASE" --head "$RAMA" \
+                 --title "$(git log -1 --pretty=%s)" \
+                 --body "$(printf '%s\n\n%s' \
+                    'Creada automáticamente tras una compilación correcta en Windows.' \
+                    'Se fusiona sola: las pruebas y el arranque del ejecutable ya han pasado.')"
+            then
+              echo "::warning title=No se ha podido crear la PR::Actions no tiene" \
+                   "permiso para abrir pull requests. Actívalo en Settings →" \
+                   "Actions → General → Workflow permissions. El .exe se ha" \
+                   "publicado igualmente."
+              echo "fusionada=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
+                       --state open --json number --jq '.[0].number // empty')
+          fi
+
+          if [ -z "$numero" ]; then
+            echo "::warning::No se ha podido determinar la PR de $RAMA."
+            echo "fusionada=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -271,3 +308,66 @@ jobs:
           # ancestro de main y las PR siguientes salen limpias en vez de
           # arrastrar cambios que ya estaban aplicados.
           gh pr merge "$numero" --repo "$GITHUB_REPOSITORY" --merge
+          echo "fusionada=true" >> "$GITHUB_OUTPUT"
+
+      - name: Recuperar los ejecutables ya compilados
+        if: steps.fusion.outputs.fusionada == 'true'
+        uses: actions/download-artifact@v5
+        with:
+          name: ControlHorario-Windows-${{ needs.construir.outputs.version }}
+          path: dist
+
+      - name: Publicar la versión estable si estrena número
+        # Sólo con el código ya en main. Publicar como «estable» algo que sigue
+        # en una rama sin fusionar sería anunciar un estado que no existe.
+        if: steps.fusion.outputs.fusionada == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.construir.outputs.version }}
+        # Se hace aquí, ya con el código en main, y no en la compilación: basta
+        # con subir el número en controlhorario/version.py para que salga una
+        # release numerada. Es la que apunta .../releases/latest/download/...
+        run: |
+          set -euo pipefail
+
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "La versión $VERSION ya está publicada."
+            echo "Sube el número en controlhorario/version.py para sacar otra."
+            exit 0
+          fi
+
+          cat > notas.md <<NOTAS
+          ## Control Horario $VERSION
+
+          ### Descarga
+
+          Enlace permanente, siempre la última versión estable:
+
+          \`\`\`
+          https://github.com/$GITHUB_REPOSITORY/releases/latest/download/ControlHorario-Instalador.exe
+          \`\`\`
+
+          | Fichero | Para qué |
+          |---|---|
+          | **ControlHorario-Instalador.exe** | Instala el programa y crea el acceso directo |
+          | ControlHorario-Portable.exe | Se ejecuta sin instalar nada |
+
+          No hace falta tener Python: va todo dentro.
+
+          ### Al abrirlo, Windows avisará
+
+          El ejecutable no está firmado digitalmente, así que SmartScreen mostrará
+          *"Windows protegió su PC"*. Pulsa **Más información → Ejecutar de todas
+          formas**.
+
+          ### Los datos
+
+          Se guardan en \`%APPDATA%\ControlHorario\`, aparte del programa, y cada
+          instalación es independiente. Instalar, actualizar o desinstalar no los
+          toca: la ley obliga a conservarlos cuatro años.
+          NOTAS
+
+          gh release create "v$VERSION" dist/*.exe --repo "$GITHUB_REPOSITORY" \
+            --title "Control Horario $VERSION" --notes-file notas.md --latest
+
+          echo "Publicada la versión estable v$VERSION."
