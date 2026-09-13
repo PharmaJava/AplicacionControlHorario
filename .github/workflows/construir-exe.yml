@@ -255,6 +255,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fusionar la rama, creando la PR si hace falta
+        id: fusion
         env:
           GH_TOKEN: ${{ github.token }}
           RAMA: ${{ github.ref_name }}
@@ -271,6 +272,7 @@ jobs:
           if [ -z "$numero" ]; then
             if git diff --quiet "origin/${BASE}...HEAD"; then
               echo "La rama no aporta cambios sobre ${BASE}. Nada que fusionar."
+              echo "fusionada=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             echo "No hay ninguna PR abierta para $RAMA; se crea una."
@@ -288,6 +290,7 @@ jobs:
                    "permiso para abrir pull requests. Actívalo en Settings →" \
                    "Actions → General → Workflow permissions. El .exe se ha" \
                    "publicado igualmente."
+              echo "fusionada=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             numero=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$RAMA" \
@@ -296,6 +299,7 @@ jobs:
 
           if [ -z "$numero" ]; then
             echo "::warning::No se ha podido determinar la PR de $RAMA."
+            echo "fusionada=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -304,14 +308,19 @@ jobs:
           # ancestro de main y las PR siguientes salen limpias en vez de
           # arrastrar cambios que ya estaban aplicados.
           gh pr merge "$numero" --repo "$GITHUB_REPOSITORY" --merge
+          echo "fusionada=true" >> "$GITHUB_OUTPUT"
 
       - name: Recuperar los ejecutables ya compilados
+        if: steps.fusion.outputs.fusionada == 'true'
         uses: actions/download-artifact@v5
         with:
           name: ControlHorario-Windows-${{ needs.construir.outputs.version }}
           path: dist
 
       - name: Publicar la versión estable si estrena número
+        # Sólo con el código ya en main. Publicar como «estable» algo que sigue
+        # en una rama sin fusionar sería anunciar un estado que no existe.
+        if: steps.fusion.outputs.fusionada == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.construir.outputs.version }}
