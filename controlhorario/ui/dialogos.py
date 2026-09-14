@@ -9,7 +9,12 @@ from typing import Any
 
 from ..config import MODALIDADES, ROLES
 from ..dominio import Trabajador
-from ..seguridad import fortaleza_contrasena, generar_pin, validar_pin
+from ..seguridad import (
+    fortaleza_contrasena,
+    generar_pin,
+    pin_previsible,
+    validar_pin,
+)
 from .tema import Tema
 from .widgets import Tarjeta, campo, centrar
 
@@ -66,6 +71,28 @@ class Dialogo(tk.Toplevel):
 
     def error(self, mensaje: str) -> None:
         messagebox.showerror("No se puede continuar", mensaje, parent=self)
+
+    def pin_aceptable(self, pin: str) -> bool:
+        """Valida el PIN y avisa si es de los que cualquiera adivinaría.
+
+        Se permite usar 1234 si quien administra lo prefiere: en una plantilla
+        pequeña la comodidad puede pesar más.  Pero conviene saber que el PIN
+        es lo que sostiene que un fichaje sea de quien dice ser, así que el
+        aviso se da una vez y decide la persona.
+        """
+        valido, mensaje = validar_pin(pin)
+        if not valido:
+            self.error(mensaje)
+            return False
+        if pin_previsible(pin):
+            return messagebox.askyesno(
+                "PIN fácil de adivinar",
+                f"«{pin}» es de los primeros que probaría cualquiera.\n\n"
+                "Si otra persona lo adivina podría fichar en su nombre y el "
+                "registro dejaría de ser fiable.\n\n¿Usarlo de todas formas?",
+                parent=self,
+            )
+        return True
 
 
 # --------------------------------------------------------------------------- #
@@ -234,7 +261,7 @@ class DialogoCambiarClave(Dialogo):
 # --------------------------------------------------------------------------- #
 
 class DialogoTrabajador(Dialogo):
-    ancho, alto = 520, 520
+    ancho, alto = 520, 570
 
     def __init__(
         self, padre: tk.Misc, tema: Tema, trabajador: Trabajador | None = None
@@ -260,12 +287,23 @@ class DialogoTrabajador(Dialogo):
         fila.pack(fill="x", pady=(0, 10))
         izquierda = ttk.Frame(fila, style="Superficie.TFrame")
         izquierda.pack(side="left", fill="x", expand=True)
-        ttk.Label(izquierda, text="Rol", style="Suave.TLabel").pack(anchor="w")
+        ttk.Label(
+            izquierda, text="Rol (sólo informativo)", style="Suave.TLabel"
+        ).pack(anchor="w")
         self.rol = ttk.Combobox(
             izquierda, values=list(ROLES), state="readonly", width=16
         )
         self.rol.set(trabajador.rol if trabajador else "EMPLEADO")
         self.rol.pack(fill="x", pady=(3, 0))
+        # Conviene decirlo: marcar a alguien como ADMIN aquí no le da acceso a
+        # nada.  Lo que abre la gestión es la contraseña de administración, no
+        # el rol, y dar por hecho lo contrario sería un descuido de seguridad.
+        ttk.Label(
+            izquierda,
+            text="No da permisos: la gestión se abre con la contraseña.",
+            style="Suave.TLabel",
+            wraplength=int(200 * tema.escala), justify="left",
+        ).pack(anchor="w", pady=(3, 0))
 
         derecha = ttk.Frame(fila, style="Superficie.TFrame")
         derecha.pack(side="left", fill="x", expand=True, padx=(12, 0))
@@ -337,9 +375,7 @@ class DialogoTrabajador(Dialogo):
         }
         if self.pin is not None:
             pin = self.pin.get().strip()
-            valido, mensaje = validar_pin(pin)
-            if not valido:
-                self.error(mensaje)
+            if not self.pin_aceptable(pin):
                 return
             datos["pin"] = pin
         self.resultado = datos
@@ -368,11 +404,10 @@ class DialogoPin(Dialogo):
         self.pin.focus_set()
 
     def aceptar(self) -> None:
-        valido, mensaje = validar_pin(self.pin.get().strip())
-        if not valido:
-            self.error(mensaje)
+        pin = self.pin.get().strip()
+        if not self.pin_aceptable(pin):
             return
-        self.resultado = self.pin.get().strip()
+        self.resultado = pin
         self.destroy()
 
 

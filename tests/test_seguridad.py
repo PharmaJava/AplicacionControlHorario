@@ -13,6 +13,7 @@ from controlhorario.seguridad import (
     generar_pin,
     hash_secreto,
     obtener_clave,
+    pin_previsible,
     validar_pin,
     verificar_secreto,
 )
@@ -127,11 +128,32 @@ def test_la_longitud_puede_sustituir_a_la_complejidad():
     assert fortaleza_contrasena(larga)[0]
 
 
-@pytest.mark.parametrize("pin", ["0000", "1234", "abc1", "12", "999999999", "7777"])
-def test_pines_debiles_rechazados(pin):
+@pytest.mark.parametrize("pin", ["abc1", "12", "999999999", "12 34", ""])
+def test_pines_con_formato_invalido_rechazados(pin):
     assert not validar_pin(pin)[0]
 
 
-def test_pin_generado_siempre_valido():
-    for _ in range(50):
-        assert validar_pin(generar_pin())[0]
+@pytest.mark.parametrize("pin", ["0000", "1234", "7777", "2026"])
+def test_pines_faciles_se_permiten_pero_se_avisan(pin):
+    """Quien administra decide: se permite 1234, pero sabiendo lo que es.
+
+    Obligar a un PIN complicado en una plantilla de cinco personas acaba con
+    el PIN escrito en un papel pegado al monitor, que protege menos que un
+    1234 que sólo conoce quien lo usa.
+    """
+    assert validar_pin(pin)[0]
+    assert pin_previsible(pin)
+
+
+@pytest.mark.parametrize("pin", ["4715", "9038", "271828"])
+def test_pines_normales_no_se_avisan(pin):
+    assert validar_pin(pin)[0]
+    assert not pin_previsible(pin)
+
+
+def test_pin_generado_siempre_valido_y_no_previsible():
+    """El que propone el programa nunca sale un 1234 por casualidad."""
+    for _ in range(200):
+        pin = generar_pin()
+        assert validar_pin(pin)[0]
+        assert not pin_previsible(pin)

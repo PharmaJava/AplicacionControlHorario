@@ -5,6 +5,36 @@
 Reescritura completa a partir de la versión de 2024. Los datos se conservan:
 al arrancar, el programa se ofrece a importar la base de datos anterior.
 
+### Facilidad de uso en el día a día
+
+- **El código de trabajador se autocompleta**: se teclean las primeras letras
+  del nombre o del código y la lista propone a quién corresponde. Quien no se
+  acuerda de su código ya no depende de que se lo recuerden.
+- **Salida desde el Panel con doble clic**: cerrar la jornada de quien se ha
+  ido sin fichar ya no obliga a pasar por el terminal. Lo hace la
+  administración —pide la contraseña, porque si no cualquiera podría cerrar la
+  jornada de un compañero— y el fichaje queda marcado con procedencia
+  «PANEL», para que el registro siga diciendo quién anotó cada hora.
+- **PIN fáciles permitidos**: se puede usar `1234` si conviene. El programa
+  avisa una vez de que es de los primeros que probaría cualquiera y deja
+  decidir; el PIN que propone al dar de alta sigue sin ser previsible.
+- **Nombre corto para la pantalla**: el rótulo del lateral y del terminal
+  puede ser el nombre de siempre («PharmaJava») mientras los informes de la
+  Inspección siguen llevando la razón social completa, que es la que
+  identifica legalmente a la empresa. Se configura en *Ajustes → Datos de la
+  empresa*.
+- **Botón «Reactivar»** en Equipo: quien vuelve de una baja recupera su ficha
+  y su PIN en lugar de darse de alta otra vez, que partía su historial en dos.
+- El campo **Rol** deja claro que es informativo: lo que abre la gestión es la
+  contraseña de administración, no el rol.
+
+### Arreglos
+
+- La lista de sugerencias del terminal podía quedarse flotando sobre la
+  pantalla siguiente al cambiar de sección.
+- El reloj y la fecha seguían programando repintados después de cerrarse la
+  ventana.
+
 ### Contraseñas
 
 - La validación pasa a **priorizar la longitud sobre la composición**, como

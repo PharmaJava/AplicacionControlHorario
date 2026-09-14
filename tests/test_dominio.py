@@ -7,6 +7,7 @@ import datetime as dt
 import pytest
 
 from controlhorario import db, dominio as dom
+from controlhorario.config import TIPOS_EVENTO
 
 from .conftest import utc
 
@@ -203,3 +204,65 @@ def test_la_integridad_aguanta_tras_rectificar(conexion, trabajador):
         motivo="Prueba de integridad", autor="admin",
     )
     assert db.verificar_integridad(conexion)["integro"]
+
+
+def test_reactivar_devuelve_el_alta_sin_duplicar_la_ficha(
+    conexion, cifrador, trabajador
+):
+    """Volver de una baja no debe obligar a crear la persona otra vez.
+
+    Si hubiera que darla de alta de nuevo, sus fichajes antiguos quedarían
+    colgando de otra ficha y el historial de cuatro años del art. 34.9 ET
+    aparecería partido en dos.
+    """
+    dom.fichar(conexion, trabajador.id, "ENTRADA", momento=utc(2026, 3, 2, 9))
+    dom.fichar(conexion, trabajador.id, "SALIDA", momento=utc(2026, 3, 2, 17))
+    dom.baja_trabajador(conexion, cifrador, trabajador.id)
+    with pytest.raises(dom.ErrorDominio):
+        dom.autenticar(conexion, cifrador, trabajador.codigo, "4791")
+
+    dom.reactivar_trabajador(conexion, trabajador.id, autor="admin")
+
+    vuelto = dom.obtener_trabajador(conexion, cifrador, trabajador.id)
+    assert vuelto.activo
+    assert vuelto.baja is None
+    # El PIN de siempre sigue sirviendo: no se le cambia nada por volver.
+    assert dom.autenticar(conexion, cifrador, trabajador.codigo, "4791").id == (
+        trabajador.id
+    )
+    # Y sus fichajes anteriores siguen siendo suyos.
+    assert len(dom.eventos_efectivos(conexion, trabajador_id=trabajador.id)) == 2
+    assert any(
+        f["accion"] == "REACTIVA_TRABAJADOR"
+        for f in conexion.execute("SELECT accion FROM auditoria")
+    )
+    assert len(conexion.execute("SELECT id FROM trabajadores").fetchall()) == 1
+
+
+def test_los_tipos_que_se_fichan_son_los_del_libro_menos_la_rectificacion():
+    """Una sola lista de tipos de evento, no dos que puedan separarse."""
+    assert set(dom.TIPOS_FICHAJE) == set(TIPOS_EVENTO) - {"RECTIFICACION"}
+
+
+def test_no_se_ficha_una_rectificacion_a_mano(conexion, trabajador):
+    with pytest.raises(dom.ErrorDominio):
+        dom.fichar(conexion, trabajador.id, "RECTIFICACION")
+
+
+def test_la_salida_registrada_desde_el_panel_deja_su_procedencia(
+    conexion, trabajador
+):
+    """La cierra la administración, no la persona: tiene que notarse.
+
+    El registro debe poder decir quién anotó cada hora, así que un cierre
+    hecho desde el panel queda con origen «PANEL» y con el autor que lo hizo,
+    no como si lo hubiera fichado el propio trabajador en el terminal.
+    """
+    dom.fichar(conexion, trabajador.id, "ENTRADA", momento=utc(2026, 3, 2, 9))
+    evento = dom.fichar(
+        conexion, trabajador.id, "SALIDA", momento=utc(2026, 3, 2, 17),
+        autor="admin", origen="PANEL",
+    )
+    assert evento.origen == "PANEL"
+    assert evento.autor == "admin"
+    assert dom.estado_actual(conexion, trabajador.id) == dom.FUERA
