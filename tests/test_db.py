@@ -7,7 +7,7 @@ import sqlite3
 
 import pytest
 
-from controlhorario import db
+from controlhorario import db, dominio as dom
 
 from .conftest import utc
 
@@ -154,3 +154,62 @@ def test_marcas_de_tiempo_ordenables(conexion, cifrador):
     )]
     assert marcas == sorted(marcas)
     assert marcas[0].startswith("2026-03-01T")
+
+
+def test_la_purga_legal_no_deja_el_registro_como_alterado(conexion, cifrador):
+    """Purgar lo caducado abre un hueco en la cadena, pero no es manipulación.
+
+    Antes, usar la purga que ofrece el propio programa hacía que la
+    verificación dijera «ALTERADO»: el peor mensaje posible justo cuando lo
+    que se quiere acreditar ante la Inspección es que el registro es fiable.
+    """
+    trabajador = dom.alta_trabajador(
+        conexion, cifrador, nombre="Ana Ruiz", pin="4791"
+    )
+    viejo = db.ahora_utc() - dt.timedelta(days=365 * 6)
+    dom.fichar(conexion, trabajador.id, "ENTRADA", momento=viejo)
+    dom.fichar(conexion, trabajador.id, "SALIDA", momento=viejo + dt.timedelta(hours=8))
+    dom.fichar(conexion, trabajador.id, "ENTRADA")
+
+    assert db.purgar_caducados(conexion, anios=4) == 2
+
+    informe = db.verificar_integridad(conexion)
+    assert informe["integro"]
+    assert not informe["eventos"]["incidencias"]
+    cortes = informe["eventos"]["cortes"]
+    assert len(cortes) == 1
+    assert cortes[0]["purgados"] == 2
+
+
+def test_un_borrado_a_escondidas_sigue_detectandose(conexion, cifrador):
+    """El hueco sólo se acepta si lo dejó una purga anotada."""
+    trabajador = dom.alta_trabajador(
+        conexion, cifrador, nombre="Ana Ruiz", pin="4791"
+    )
+    for tipo in ("ENTRADA", "PAUSA_INICIO", "PAUSA_FIN", "SALIDA"):
+        dom.fichar(conexion, trabajador.id, tipo)
+
+    # Saltándose el trigger igual que podría hacerlo alguien con el fichero.
+    db.guardar_config(conexion, "purga_en_curso", "1")
+    conexion.execute("DELETE FROM eventos WHERE id = 2")
+    db.guardar_config(conexion, "purga_en_curso", "0")
+
+    informe = db.verificar_integridad(conexion)
+    assert not informe["integro"]
+    assert informe["eventos"]["incidencias"][0]["problema"] == "cadena_rota"
+
+
+def test_un_corte_inventado_no_cuela(conexion, cifrador):
+    trabajador = dom.alta_trabajador(
+        conexion, cifrador, nombre="Ana Ruiz", pin="4791"
+    )
+    for tipo in ("ENTRADA", "SALIDA", "ENTRADA"):
+        dom.fichar(conexion, trabajador.id, tipo)
+    db.guardar_config(conexion, "purga_en_curso", "1")
+    conexion.execute("DELETE FROM eventos WHERE id = 2")
+    db.guardar_config(conexion, "purga_en_curso", "0")
+    db.guardar_config(
+        conexion, "cortes_purga",
+        '[{"id": 3, "hash_previo": "inventado", "purgados": 1, "utc": "2026-01-01"}]',
+    )
+    assert not db.verificar_integridad(conexion)["integro"]
