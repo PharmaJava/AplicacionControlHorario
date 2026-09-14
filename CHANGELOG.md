@@ -30,6 +30,14 @@ al arrancar, el programa se ofrece a importar la base de datos anterior.
 
 ### Arreglos
 
+- **Purgar lo caducado dejaba el registro marcado como «ALTERADO».** La purga
+  que ofrece el propio programa borra fichajes que ya han cumplido el plazo de
+  conservación y eso abre un hueco en la cadena de integridad, que hasta ahora
+  no se distinguía de un borrado a escondidas. Ahora el corte queda anotado y
+  la verificación lo explica —con su fecha y su asiento de auditoría— en la
+  pantalla, en el Excel, en el informe para la Inspección y en el expediente
+  JSON. Un borrado que no corresponda a una purga anotada sigue saliendo como
+  cadena rota.
 - La lista de sugerencias del terminal podía quedarse flotando sobre la
   pantalla siguiente al cambiar de sección.
 - El reloj y la fecha seguían programando repintados después de cerrarse la

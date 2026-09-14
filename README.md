@@ -335,6 +335,9 @@ seguridad completa y suficiente.
   de base de datos.
 - **Cadena de hashes SHA-256** encadenados: cualquier manipulación externa
   rompe la cadena y se detecta desde **Ajustes → Verificar la integridad**.
+  La purga de registros ya caducados sí puede borrar fichajes, y el hueco que
+  deja queda anotado: la verificación lo señala como purga —con su fecha y su
+  asiento de auditoría— en vez de darlo por manipulación.
 - Registro de **auditoría** de todas las acciones administrativas.
 - La sesión de administración **caduca a los 15 minutos** de inactividad.
 - Fichar por otra persona desde el **Panel** exige esa contraseña, y el fichaje
