@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -446,9 +447,14 @@ def verificar_integridad(conexion: sqlite3.Connection) -> dict[str, Any]:
     informe: dict[str, Any] = {
         "verificado_utc": a_iso(ahora_utc()),
         "integro": True,
-        "eventos": {"filas": 0, "incidencias": []},
-        "auditoria": {"filas": 0, "incidencias": []},
+        "eventos": {"filas": 0, "incidencias": [], "cortes": []},
+        "auditoria": {"filas": 0, "incidencias": [], "cortes": []},
     }
+    # Una purga legal borra fichajes caducados y deja la cadena con un hueco.
+    # Ese hueco queda anotado al purgar, para poder distinguirlo de un borrado
+    # a escondidas: si no, usar la purga que ofrece el propio programa dejaría
+    # el registro marcado como alterado justo cuando viene una inspección.
+    cortes = {c["id"]: c for c in _cortes_purga(conexion)}
 
     for tabla, calculador in (("eventos", hash_evento), ("auditoria", hash_auditoria)):
         previo_esperado = GENESIS
@@ -458,17 +464,31 @@ def verificar_integridad(conexion: sqlite3.Connection) -> dict[str, Any]:
         ):
             total += 1
             if fila["hash_previo"] != previo_esperado:
-                informe[tabla]["incidencias"].append(
-                    {
-                        "id": fila["id"],
-                        "problema": "cadena_rota",
-                        "detalle": (
-                            "El eslabón anterior no coincide: puede haberse "
-                            "borrado o reordenado una fila."
-                        ),
-                    }
-                )
-                informe["integro"] = False
+                corte = cortes.get(fila["id"]) if tabla == "eventos" else None
+                if corte and corte.get("hash_previo") == fila["hash_previo"]:
+                    informe[tabla]["cortes"].append(
+                        {
+                            "id": fila["id"],
+                            "purgados": corte.get("purgados", 0),
+                            "cuando": corte.get("utc", ""),
+                            "detalle": (
+                                "Aquí termina lo que se borró en la purga de "
+                                "registros caducados, anotada en la auditoría."
+                            ),
+                        }
+                    )
+                else:
+                    informe[tabla]["incidencias"].append(
+                        {
+                            "id": fila["id"],
+                            "problema": "cadena_rota",
+                            "detalle": (
+                                "El eslabón anterior no coincide: puede haberse "
+                                "borrado o reordenado una fila."
+                            ),
+                        }
+                    )
+                    informe["integro"] = False
             esperado = calculador(fila)
             if fila["hash"] != esperado:
                 informe[tabla]["incidencias"].append(
@@ -490,6 +510,18 @@ def verificar_integridad(conexion: sqlite3.Connection) -> dict[str, Any]:
 # Conservación legal (art. 34.9 ET: cuatro años)
 # --------------------------------------------------------------------------- #
 
+def _cortes_purga(conexion: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Huecos que las purgas legales han dejado en la cadena de fichajes."""
+    bruto = leer_config(conexion, "cortes_purga")
+    if not bruto:
+        return []
+    try:
+        datos = json.loads(bruto)
+    except json.JSONDecodeError:
+        return []
+    return datos if isinstance(datos, list) else []
+
+
 def purgar_caducados(
     conexion: sqlite3.Connection, anios: int = 4, actor: str = "sistema"
 ) -> int:
@@ -507,11 +539,37 @@ def purgar_caducados(
     if not pendientes:
         return 0
 
+    # Antes de borrar se apunta dónde va a quedar el hueco: qué fichaje pasa a
+    # ser el primero de los que sobreviven y a qué hash apunta.  Así la
+    # verificación de integridad puede decir «aquí se purgó», con fecha y con
+    # el asiento de auditoría correspondiente, en vez de «esto está alterado».
+    filas = conexion.execute(
+        "SELECT id, hash_previo, ts_utc FROM eventos ORDER BY id ASC"
+    ).fetchall()
+    ahora = a_iso(ahora_utc())
+    cortes = _cortes_purga(conexion)
+    anterior_se_va = False
+    for fila in filas:
+        if fila["ts_utc"] < limite:
+            anterior_se_va = True
+            continue
+        if anterior_se_va:
+            cortes.append(
+                {
+                    "id": fila["id"],
+                    "hash_previo": fila["hash_previo"],
+                    "purgados": pendientes,
+                    "utc": ahora,
+                }
+            )
+        anterior_se_va = False
+
     guardar_config(conexion, "purga_en_curso", "1")
     try:
         conexion.execute("DELETE FROM eventos WHERE ts_utc < ?", (limite,))
     finally:
         guardar_config(conexion, "purga_en_curso", "0")
+    guardar_config(conexion, "cortes_purga", json.dumps(cortes, ensure_ascii=False))
 
     registrar_auditoria(
         conexion,

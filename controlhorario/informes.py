@@ -116,6 +116,29 @@ def _resumen_procedencia(conexion: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
+def _texto_cortes(integridad: dict) -> list[str]:
+    """Explica los huecos que ha dejado una purga por caducidad legal.
+
+    Un hueco en la cadena no es lo mismo que una manipulación, pero desde
+    fuera se parece: conviene que el informe lo diga antes de que lo pregunten.
+    """
+    cortes = integridad["eventos"].get("cortes") or []
+    if not cortes:
+        return []
+    purgados = sum(c.get("purgados", 0) for c in cortes)
+    fechas = sorted({(c.get("cuando") or "")[:10] for c in cortes if c.get("cuando")})
+    lineas = [
+        f"La cadena tiene {len(cortes)} corte(s) por la purga de registros ya "
+        f"caducados: se retiraron {purgados} fichaje(s) que habían superado el "
+        "plazo legal de conservación.",
+        "No es una alteración: la purga está anotada en el registro de "
+        "auditoría, con fecha y autor, y el resto de la cadena cuadra.",
+    ]
+    if fechas:
+        lineas.append("Fecha(s) de purga: " + ", ".join(fechas) + ".")
+    return lineas
+
+
 def _texto_alcance(procedencia: dict[str, Any]) -> list[str]:
     """Explicación honesta de hasta dónde llega la garantía de integridad."""
     lineas = [
@@ -334,6 +357,9 @@ def exportar_excel(
     ).font = Font(bold=True, size=11)
     fila += 1
     for linea in _texto_alcance(procedencia):
+        hoja_integridad.cell(row=fila, column=1, value=linea)
+        fila += 1
+    for linea in _texto_cortes(informe):
         hoja_integridad.cell(row=fila, column=1, value=linea)
         fila += 1
 
@@ -797,6 +823,9 @@ def informe_inspeccion(
         f"huella final <code>{integridad['eventos']['hash_final'][:24]}…</code></p>"
     )
     partes.append("<p>" + " ".join(_texto_alcance(procedencia)) + "</p>")
+    cortes = _texto_cortes(integridad)
+    if cortes:
+        partes.append("<p>" + _escapar(" ".join(cortes)) + "</p>")
 
     partes.append(
         '<div class="pie">'

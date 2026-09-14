@@ -1529,12 +1529,23 @@ class VistaAjustes(Vista):
     def verificar(self) -> None:
         informe = db.verificar_integridad(self.app.conexion)
         if informe["integro"]:
+            cortes = informe["eventos"].get("cortes") or []
+            nota = ""
+            if cortes:
+                purgados = sum(c.get("purgados", 0) for c in cortes)
+                nota = (
+                    f"\n\nLa cadena tiene {len(cortes)} corte(s) por la purga "
+                    f"de {purgados} fichaje(s) ya caducados. No es una "
+                    "alteración: consta en la auditoría y así se explica en "
+                    "los informes."
+                )
             messagebox.showinfo(
                 "Registro íntegro",
                 f"Comprobados {informe['eventos']['filas']} fichajes y "
                 f"{informe['auditoria']['filas']} registros de auditoría.\n\n"
                 "La cadena de integridad es correcta: ningún dato se ha "
-                "alterado fuera de la aplicación.\n\n"
+                "alterado fuera de la aplicación."
+                f"{nota}\n\n"
                 f"Hash final: {informe['eventos']['hash_final'][:32]}…",
                 parent=self,
             )
