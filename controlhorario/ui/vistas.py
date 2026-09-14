@@ -21,7 +21,16 @@ from .dialogos import (
     DialogoRectificar,
     DialogoTrabajador,
 )
-from .widgets import Fecha, Pastilla, Reloj, Tabla, Tarjeta, campo, separador
+from .widgets import (
+    CampoAutocompletado,
+    Fecha,
+    Pastilla,
+    Reloj,
+    Tabla,
+    Tarjeta,
+    campo,
+    separador,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from .app import Aplicacion
@@ -86,7 +95,7 @@ class VistaFichar(Vista):
         self.reloj.pack(anchor="w")
         Fecha(izquierda.cuerpo).pack(anchor="w", pady=(2, 18))
         ttk.Label(
-            izquierda.cuerpo, text=self.app.ajustes.empresa or "Control Horario",
+            izquierda.cuerpo, text=self.app.ajustes.rotulo() or "Control Horario",
             style="Seccion.TLabel",
         ).pack(anchor="w")
         if self.app.ajustes.centro_trabajo:
@@ -113,10 +122,21 @@ class VistaFichar(Vista):
 
         self.marco_acceso = ttk.Frame(self.panel, style="Superficie.TFrame")
         self.marco_acceso.pack(fill="x")
-        marco, self.entrada_codigo = campo(
-            self.marco_acceso, "Código de trabajador (por ejemplo E001)", ancho=22
+
+        ttk.Label(
+            self.marco_acceso, text="Tu código o tu nombre", style="Suave.TLabel"
+        ).pack(anchor="w")
+        self.entrada_codigo = CampoAutocompletado(
+            self.marco_acceso, self.tema, ancho=22,
+            al_elegir=lambda: self.entrada_pin.focus_set(),
         )
-        marco.pack(fill="x", pady=(0, 12))
+        self.entrada_codigo.pack(fill="x", pady=(3, 2))
+        ttk.Label(
+            self.marco_acceso,
+            text="Escribe las primeras letras y elige de la lista.",
+            style="Suave.TLabel",
+        ).pack(anchor="w", pady=(0, 12))
+
         marco, self.entrada_pin = campo(
             self.marco_acceso, "PIN", ancho=22, mostrar="●"
         )
@@ -125,13 +145,32 @@ class VistaFichar(Vista):
             self.marco_acceso, text="Identificarme", style="Primario.TButton",
             command=self.identificar,
         ).pack(fill="x")
-        self.entrada_codigo.bind("<Return>", lambda _e: self.entrada_pin.focus_set())
         self.entrada_pin.bind("<Return>", lambda _e: self.identificar())
 
         self.marco_acciones = ttk.Frame(self.panel, style="Superficie.TFrame")
+        # Al salir de esta pantalla, la lista de sugerencias se recoge: está
+        # dibujada sobre la ventana y si no se quedaría encima de la siguiente.
+        self.bind(
+            "<Unmap>", lambda _e: self.entrada_codigo.ocultar_sugerencias(), add="+"
+        )
 
     def refrescar(self) -> None:
+        self._cargar_sugerencias()
         self.reiniciar()
+
+    def _cargar_sugerencias(self) -> None:
+        """Códigos y nombres de la plantilla activa, para el autocompletado.
+
+        No es información reservada —el PIN es lo que identifica—, pero se
+        limita a quien está de alta para no enseñar a quien ya no trabaja aquí.
+        """
+        try:
+            gente = self.app.trabajadores()
+        except Exception:
+            gente = []
+        self.entrada_codigo.opciones(
+            [(t.codigo, f"{t.codigo} · {t.nombre}") for t in gente]
+        )
 
     def reiniciar(self) -> None:
         if self._tarea_reinicio:
@@ -144,7 +183,7 @@ class VistaFichar(Vista):
         self.marco_acciones.pack_forget()
         for hijo in self.marco_acciones.winfo_children():
             hijo.destroy()
-        self.entrada_codigo.delete(0, "end")
+        self.entrada_codigo.limpiar()
         self.entrada_pin.delete(0, "end")
         self.marco_acceso.pack(fill="x")
         try:
@@ -153,7 +192,9 @@ class VistaFichar(Vista):
             pass
 
     def identificar(self) -> None:
-        codigo = self.entrada_codigo.get().strip()
+        codigo = self.entrada_codigo.get()
+        # Si eligió de la lista queda «E001 · Ana Ruiz»: vale el código.
+        codigo = codigo.split("·")[0].strip()
         pin = self.entrada_pin.get().strip()
         if not codigo or not pin:
             self.app.aviso("Escribe tu código y tu PIN.", "aviso")
@@ -285,6 +326,8 @@ class VistaPanel(Vista):
 
     def construir(self) -> None:
         self.cabecera()
+        # iid de la fila -> nombre de quien está fichado; lo llena refrescar().
+        self._presentes: dict[str, str] = {}
 
         self.tarjetas = ttk.Frame(self)
         self.tarjetas.pack(fill="x", pady=(0, 14))
@@ -302,6 +345,12 @@ class VistaPanel(Vista):
             altura=9,
         )
         self.tabla_presentes.pack(fill="both", expand=True, pady=(10, 0))
+        self.tabla_presentes.arbol.bind("<Double-1>", self._doble_clic_presente)
+        ttk.Label(
+            izquierda.cuerpo,
+            text="Doble clic sobre una persona para registrar su salida.",
+            style="Suave.TLabel",
+        ).pack(anchor="w", pady=(8, 0))
 
         derecha = Tarjeta(medio, self.tema)
         derecha.pack(side="left", fill="both", expand=True)
@@ -327,6 +376,7 @@ class VistaPanel(Vista):
 
         dentro = 0
         minutos_hoy = 0
+        self._presentes = {}
         self.tabla_presentes.limpiar()
         for trabajador in trabajadores:
             estado = dom.estado_actual(self.app.conexion, trabajador.id)
@@ -354,7 +404,9 @@ class VistaPanel(Vista):
                     formatear_horas(int(resumen["minutos_trabajados"])),
                 ],
                 etiqueta="exito" if estado == dom.DENTRO else "aviso",
+                iid=str(trabajador.id),
             )
+            self._presentes[str(trabajador.id)] = trabajador.nombre
         if dentro == 0:
             self.tabla_presentes.anadir(
                 ["Nadie con jornada abierta", "", "", ""], etiqueta="apagado"
@@ -396,6 +448,50 @@ class VistaPanel(Vista):
             self.tabla_alertas.anadir(
                 ["", "Sin avisos. Todo en orden.", ""], etiqueta="exito"
             )
+
+    # -- salida rápida desde el panel ------------------------------------- #
+
+    def _doble_clic_presente(self, evento: tk.Event) -> None:
+        fila = self.tabla_presentes.arbol.identify_row(evento.y)
+        if fila in self._presentes:
+            self.fichar_salida(fila)
+
+    def fichar_salida(self, iid: str) -> None:
+        """Cierra la jornada de alguien desde el panel.
+
+        Es más cómodo que ir a «Fichar» y escribir código y PIN, pero lo hace
+        otra persona en su nombre, así que se pide la contraseña de
+        administración y el fichaje queda con origen «PANEL».  Sin esa
+        distinción el registro dejaría de decir quién anotó cada hora, que es
+        justo lo que la Inspección comprueba (art. 34.9 ET).
+        """
+        nombre = self._presentes[iid]
+        if not self.app.exigir_admin(f"Para registrar la salida de {nombre}"):
+            self.app.aviso(
+                "La salida desde el panel la registra la administración. "
+                "Cada persona puede fichar la suya en «Fichar» con su PIN.",
+                "aviso", 6000,
+            )
+            return
+        if not messagebox.askyesno(
+            "Registrar salida",
+            f"¿Registrar ahora la salida de {nombre}?\n\n"
+            "Se anotará con la hora actual y constará que la registró la "
+            "administración, no la propia persona.",
+            parent=self,
+        ):
+            return
+        try:
+            evento = dom.fichar(
+                self.app.conexion, int(iid), "SALIDA",
+                autor=self.app.actor(), origen="PANEL",
+            )
+        except (ErrorDominio, ValueError) as exc:
+            self.app.aviso(str(exc), "error")
+            return
+        hora = db.a_local(evento.momento).strftime("%H:%M")
+        self.app.aviso(f"Salida de {nombre} registrada a las {hora}.", "exito")
+        self.refrescar()
 
     def _tarjeta_dato(
         self, etiqueta: str, valor: str, tono: str, nota: str = ""
@@ -458,7 +554,7 @@ class VistaEquipo(Vista):
             ("Modificar", self.modificar),
             ("Asignar PIN", self.asignar_pin),
             ("Fichaje manual", self.fichaje_manual),
-            ("Entregar su registro", self.entregar_registro),
+            ("Entregar registro", self.entregar_registro),
         ):
             ttk.Button(acciones, text=texto, command=orden).pack(
                 side="left", padx=(0, 8)
@@ -466,6 +562,9 @@ class VistaEquipo(Vista):
         ttk.Button(
             acciones, text="Dar de baja", style="Peligro.TButton", command=self.baja
         ).pack(side="right")
+        ttk.Button(acciones, text="Reactivar", command=self.reactivar).pack(
+            side="right", padx=(0, 8)
+        )
 
     def refrescar(self) -> None:
         self.tabla.limpiar()
@@ -585,6 +684,37 @@ class VistaEquipo(Vista):
         )
         self.app.aviso(f"Registro guardado en {ruta}", "info", 7000)
         _abrir(ruta)
+
+    def reactivar(self) -> None:
+        """Vuelve a dar de alta a quien se dio de baja (una excedencia, un
+        contrato de temporada que se repite).
+
+        Sin esto había que crear a la persona otra vez, y entonces sus fichajes
+        antiguos quedaban colgando de una ficha distinta: el historial de los
+        cuatro años que exige el art. 34.9 ET aparecía partido en dos.
+        """
+        trabajador = self._seleccionado()
+        if not trabajador:
+            return
+        if trabajador.activo:
+            self.app.aviso(
+                f"{trabajador.nombre} ya está de alta. Para ver a quien está de "
+                "baja, marca «Mostrar también las bajas».", "info", 6000,
+            )
+            return
+        if not messagebox.askyesno(
+            "Reactivar",
+            f"¿Volver a dar de alta a {trabajador.nombre}?\n\n"
+            "Podrá fichar de nuevo con su código y su PIN de siempre, y sus "
+            "fichajes anteriores siguen siendo suyos.",
+            parent=self,
+        ):
+            return
+        dom.reactivar_trabajador(
+            self.app.conexion, trabajador.id, autor=self.app.actor()
+        )
+        self.app.aviso(f"{trabajador.nombre} vuelve a estar de alta.", "exito")
+        self.app.refrescar_todo()
 
     def baja(self) -> None:
         trabajador = self._seleccionado()
@@ -995,6 +1125,21 @@ class VistaAjustes(Vista):
             tarjeta.cuerpo, "Razón social", ancho=44, valor=aj.empresa
         )
         marco.pack(fill="x", pady=(12, 8))
+        marco, self.nombre_visible = campo(
+            tarjeta.cuerpo, "Nombre para la pantalla (opcional)",
+            ancho=44, valor=aj.nombre_visible,
+        )
+        marco.pack(fill="x", pady=(0, 2))
+        ttk.Label(
+            tarjeta.cuerpo,
+            text=(
+                "Es el rótulo que se ve en el lateral y en la pantalla de "
+                "fichar. Déjalo vacío para usar la razón social. Los informes "
+                "de la Inspección llevan siempre la razón social completa."
+            ),
+            style="Suave.TLabel",
+            wraplength=int(640 * self.tema.escala), justify="left",
+        ).pack(anchor="w", pady=(0, 10))
         marco, self.cif = campo(tarjeta.cuerpo, "CIF / NIF", ancho=44, valor=aj.cif)
         marco.pack(fill="x", pady=(0, 8))
         marco, self.centro = campo(
@@ -1221,6 +1366,7 @@ class VistaAjustes(Vista):
         self.app.ajustes.empresa = self.empresa.get().strip()
         self.app.ajustes.cif = self.cif.get().strip()
         self.app.ajustes.centro_trabajo = self.centro.get().strip()
+        self.app.ajustes.nombre_visible = self.nombre_visible.get().strip()
         self.app.ajustes.guardar()
         db.registrar_auditoria(
             self.app.conexion, actor=self.app.actor(),

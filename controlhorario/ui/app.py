@@ -69,7 +69,7 @@ class Aplicacion(tk.Tk):
             font=self.tema.f_seccion, anchor="w",
         ).pack(fill="x")
         self.etiqueta_empresa = tk.Label(
-            marca, text=self.ajustes.empresa or "Registro de jornada",
+            marca, text=self.ajustes.rotulo() or "Registro de jornada",
             bg=p.superficie, fg=p.texto_suave, font=self.tema.f_micro,
             anchor="w", wraplength=int(196 * self.tema.escala), justify="left",
         )
@@ -147,7 +147,7 @@ class Aplicacion(tk.Tk):
     def refrescar_todo(self) -> None:
         self._cache_trabajadores = None
         self.etiqueta_empresa.configure(
-            text=self.ajustes.empresa or "Registro de jornada"
+            text=self.ajustes.rotulo() or "Registro de jornada"
         )
         vista = self._vistas.get(self.vista_actual)
         if vista is not None:
@@ -299,7 +299,7 @@ class Aplicacion(tk.Tk):
             )
 
         self.etiqueta_empresa.configure(
-            text=self.ajustes.empresa or "Registro de jornada"
+            text=self.ajustes.rotulo() or "Registro de jornada"
         )
         self.refrescar_todo()
         self._avisar_pendientes()

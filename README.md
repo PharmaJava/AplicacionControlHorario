@@ -233,13 +233,28 @@ programa genera un **código** (`E001`, `E002`…) y un **PIN**: entrégaselos, 
 los que necesita para fichar. El PIN no se puede volver a consultar, sólo
 cambiar.
 
+El PIN se puede cambiar por uno fácil de recordar, `1234` incluido: el programa
+avisa de que es de los primeros que probaría cualquiera, pero deja decidir. Es
+lo que sostiene que un fichaje sea de quien dice ser, así que conviene pensarlo
+si en el mostrador hay gente de paso.
+
+El campo **Rol** es sólo informativo: marcar a alguien como `ADMIN` no le da
+acceso a nada. Lo que abre la gestión es la contraseña de administración.
+
+> **Nombre en pantalla.** El rótulo del lateral y de la pantalla de fichar sale
+> de la razón social. Si prefieres que ahí se lea el nombre corto —«Farmacia
+> Ejemplo» en vez de «Farmacia Ejemplo S.L.»— escríbelo en *Ajustes → Datos de
+> la empresa → Nombre para la pantalla*. Los informes de la Inspección siguen
+> llevando la razón social completa, que es la que identifica legalmente a la
+> empresa.
+
 ## Uso diario
 
 | Pantalla | Para qué sirve |
 |---|---|
-| **Fichar** | El terminal. Cada persona entra con su código y su PIN y registra entrada, pausa o salida. |
-| **Panel** | Quién está trabajando ahora, horas del día y avisos de cumplimiento. |
-| **Equipo** | Altas, bajas, PIN, fichajes manuales y entrega del registro individual. |
+| **Fichar** | El terminal. Cada persona entra con su código y su PIN y registra entrada, pausa o salida. Basta con teclear las primeras letras del nombre o del código: la lista propone el resto. |
+| **Panel** | Quién está trabajando ahora, horas del día y avisos de cumplimiento. Con **doble clic** sobre alguien se registra su salida (pide la contraseña de administración y el fichaje queda marcado como hecho desde el panel). |
+| **Equipo** | Altas, bajas, reactivaciones, PIN, fichajes manuales y entrega del registro individual. |
 | **Registros** | Jornadas de cada persona y rectificación de fichajes. |
 | **Informes** | Informe imprimible para la Inspección, Excel para la empresa, CSV para la gestoría y expediente JSON. |
 | **Ajustes** | Datos de empresa, límites de jornada, arranque automático, importación del histórico, contraseña, copias e integridad. |
@@ -322,6 +337,8 @@ seguridad completa y suficiente.
   rompe la cadena y se detecta desde **Ajustes → Verificar la integridad**.
 - Registro de **auditoría** de todas las acciones administrativas.
 - La sesión de administración **caduca a los 15 minutos** de inactividad.
+- Fichar por otra persona desde el **Panel** exige esa contraseña, y el fichaje
+  queda con la procedencia «PANEL» y el autor que lo registró.
 - No se registra geolocalización ni datos biométricos.
 
 ## Normativa

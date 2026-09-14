@@ -196,23 +196,52 @@ def fortaleza_contrasena(contrasena: str) -> tuple[bool, str]:
 
 
 def validar_pin(pin: str) -> tuple[bool, str]:
-    """El PIN identifica al trabajador en el terminal de fichaje."""
+    """El PIN identifica al trabajador en el terminal de fichaje.
+
+    Sólo se comprueba el formato. Un PIN previsible se avisa, pero no se
+    impide: quien administra el programa conoce a su plantilla y decide el
+    equilibrio entre comodidad y control. Para saber si conviene avisar,
+    ``pin_previsible``.
+    """
     if not pin.isdigit():
         return False, "El PIN debe ser numérico."
     if not 4 <= len(pin) <= 8:
         return False, "El PIN debe tener entre 4 y 8 dígitos."
-    if pin in {"0000", "1234", "1111", "12345678", "123456"}:
-        return False, "Ese PIN es demasiado previsible."
-    if len(set(pin)) == 1:
-        return False, "El PIN no puede ser un dígito repetido."
     return True, "PIN válido."
 
 
+def pin_previsible(pin: str) -> bool:
+    """¿Es un PIN que cualquiera adivinaría?
+
+    No bloquea nada: sirve para avisar al darlo de alta. Importa porque el PIN
+    es lo que sostiene que un fichaje sea de quien dice ser; si todo el mundo
+    usa 1234, el registro deja de identificar a nadie en particular.
+    """
+    if not pin.isdigit():
+        return False
+    if pin in _PINES_PREVISIBLES:
+        return True
+    if len(set(pin)) == 1:                       # 0000, 7777…
+        return True
+    digitos = [int(c) for c in pin]
+    diferencias = {b - a for a, b in zip(digitos, digitos[1:], strict=False)}
+    return diferencias in ({1}, {-1})            # 1234, 4321, 6789…
+
+
+_PINES_PREVISIBLES = frozenset(
+    {"1234", "0000", "1111", "1212", "2000", "2020", "2024", "2025", "2026"}
+)
+
+
 def generar_pin(longitud: int = 4) -> str:
-    """PIN aleatorio para altas de trabajadores."""
+    """PIN aleatorio para altas de trabajadores.
+
+    Se descartan los previsibles: quien acepta el que propone el programa no
+    debería acabar con un 1234 por casualidad. Elegirlo a mano sí se permite.
+    """
     while True:
         pin = "".join(secrets.choice("0123456789") for _ in range(longitud))
-        if validar_pin(pin)[0]:
+        if validar_pin(pin)[0] and not pin_previsible(pin):
             return pin
 
 
@@ -233,6 +262,7 @@ __all__ = [
     "fortaleza_contrasena",
     "generar_pin",
     "hash_secreto",
+    "pin_previsible",
     "obtener_clave",
     "validar_pin",
     "verificar_secreto",

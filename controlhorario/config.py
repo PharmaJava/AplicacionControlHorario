@@ -96,6 +96,11 @@ class Ajustes:
     empresa: str = ""
     cif: str = ""
     centro_trabajo: str = ""
+    # Nombre corto para la pantalla. Los informes que ve la Inspección llevan
+    # la razón social completa, que es la que identifica legalmente a la
+    # empresa; en el rótulo del terminal suele quedar mejor el nombre de
+    # siempre, sin la forma jurídica.  Vacío: se usa la razón social.
+    nombre_visible: str = ""
 
     # Límites de jornada. Art. 34.1 ET: 40 horas semanales de promedio anual.
     # Es configurable porque el convenio puede fijar una jornada menor.
@@ -123,6 +128,14 @@ class Ajustes:
     tema: str = "claro"  # "claro" u "oscuro"
     modo_terminal: bool = False  # arranca en pantalla de fichaje a pantalla completa
     copia_automatica: bool = True
+
+    def rotulo(self) -> str:
+        """Lo que se lee en pantalla: el nombre corto si lo hay.
+
+        No sustituye a la razón social en los informes: ahí debe figurar la
+        denominación completa.
+        """
+        return self.nombre_visible.strip() or self.empresa.strip()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

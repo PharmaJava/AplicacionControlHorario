@@ -325,3 +325,33 @@ def test_el_informe_escapa_el_html_de_los_datos(
     texto = ruta.read_text(encoding="utf-8")
     assert "<script>alert(1)</script>" not in texto
     assert "&lt;script&gt;" in texto
+
+
+def test_el_nombre_corto_de_pantalla_no_sustituye_a_la_razon_social(
+    conexion, con_datos, periodo, tmp_path
+):
+    """El rótulo de la pantalla puede ser el nombre de siempre; el informe no.
+
+    A la Inspección se le entrega la denominación completa, que es la que
+    identifica legalmente a quien responde del registro.
+    """
+    from controlhorario.config import Ajustes
+
+    ajustes = Ajustes(
+        empresa="Farmacia Ejemplo S.L.",
+        cif="B00000000",
+        nombre_visible="Farmacia Ejemplo",
+    )
+    assert ajustes.rotulo() == "Farmacia Ejemplo"
+
+    ruta = informes.informe_inspeccion(
+        conexion, ajustes, [con_datos], *periodo, carpeta=tmp_path
+    )
+    assert "Farmacia Ejemplo S.L." in ruta.read_text(encoding="utf-8")
+
+
+def test_sin_nombre_corto_el_rotulo_es_la_razon_social():
+    from controlhorario.config import Ajustes
+
+    assert Ajustes(empresa="Farmacia Ejemplo S.L.").rotulo() == "Farmacia Ejemplo S.L."
+    assert Ajustes().rotulo() == ""

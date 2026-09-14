@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from collections.abc import Sequence
 
 from . import db
-from .config import MODALIDADES, ROLES
+from .config import MODALIDADES, ROLES, TIPOS_EVENTO
 from .seguridad import Cifrador, hash_secreto, validar_pin, verificar_secreto
 
 FUERA = "FUERA"
@@ -443,6 +443,11 @@ def estado_actual(conexion: sqlite3.Connection, trabajador_id: int) -> str:
     return estado
 
 
+# Lo que una persona puede registrar al fichar.  «RECTIFICACION» también es un
+# tipo de evento del libro, pero lo genera rectificar(): nadie lo teclea.
+TIPOS_FICHAJE = tuple(t for t in TIPOS_EVENTO if t != "RECTIFICACION")
+
+
 def fichar(
     conexion: sqlite3.Connection,
     trabajador_id: int,
@@ -454,7 +459,7 @@ def fichar(
     autor: str = "",
     origen: str = "APP",
 ) -> Evento:
-    if tipo not in {"ENTRADA", "SALIDA", "PAUSA_INICIO", "PAUSA_FIN", "INCIDENCIA"}:
+    if tipo not in TIPOS_FICHAJE:
         raise ErrorDominio(f"Tipo de fichaje desconocido: {tipo}")
     if modalidad not in MODALIDADES:
         raise ErrorDominio(f"Modalidad desconocida: {modalidad}")
@@ -764,5 +769,6 @@ __all__ = [
     "reactivar_trabajador",
     "rectificar",
     "resumen_periodo",
+    "TIPOS_FICHAJE",
     "ultimo_evento",
 ]
